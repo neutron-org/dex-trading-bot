@@ -1,8 +1,13 @@
+# this file is based on https://github.com/neutron-org/neutron-integration-tests/blob/dd5e0cf609432c970ba432a84eb53bcfef961652/setup/Makefile
+
 REPOS_DIR ?= ./repos
 SETUP_DIR ?= $(REPOS_DIR)/neutron-integration-tests/setup
 COMPOSE ?= docker-compose
 NEUTRON_VERSION ?= v2.0.0
 GAIA_VERSION ?= v14.1.0
+
+
+# --- repo init commands ---
 
 init-dir:
 ifeq (,$(wildcard $(REPOS_DIR)))
@@ -39,6 +44,9 @@ endif
 
 init-all: init-dir init-neutron init-hermes init-relayer init-gaia
 
+
+# --- docker build commands ---
+
 build-gaia: init-dir init-gaia
 	@docker buildx build --load --build-context app=$(REPOS_DIR)/gaia --build-context setup=$(REPOS_DIR)/neutron/network -t gaia-node -f $(SETUP_DIR)/dockerbuilds/Dockerfile.gaia --build-arg BINARY=gaiad .
 
@@ -52,6 +60,9 @@ build-relayer: init-dir init-relayer
 	cd $(REPOS_DIR)/neutron-query-relayer && $(MAKE) build-docker
 
 build-all: init-all build-gaia build-neutron build-hermes build-relayer
+
+
+# --- docker usage commands ---
 
 start-cosmopark: build-neutron build-relayer
 	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml up -d
