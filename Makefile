@@ -62,7 +62,7 @@ build-relayer: init-dir init-relayer
 build-all: init-all build-gaia build-neutron build-hermes build-relayer
 
 
-# --- docker usage commands ---
+# --- cosmopark commands from neutron-integrated-tests repo ---
 
 start-cosmopark: build-neutron build-relayer
 	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml up -d
@@ -79,3 +79,19 @@ start-neutron-node:
 clean:
 	@echo "Removing previous testing data"
 	-@docker volume rm neutron-testing-data
+
+
+# --- new docker compose network commands ---
+
+build-trade-bot:
+	@$(COMPOSE) build
+
+start-trade-bot: build-trade-bot
+	@$(COMPOSE) up
+
+stop-trade-bot:
+	@$(COMPOSE) down -t0 --remove-orphans -v
+
+run-trade-bot: build-trade-bot
+	@$(COMPOSE) up --abort-on-container-exit || true
+	$(MAKE) stop-trade-bot

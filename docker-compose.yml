@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  neutron-node:
+    image: neutron-node
+    container_name: neutron-node
+    volumes:
+      - data:/opt/neutron/data
+    ports:
+      - 1317:1317
+      - 26657:26657
+      - 26656:26656
+      - 8090:9090
+    environment:
+      - RUN_BACKGROUND=0
+    networks:
+      - neutron-testing
+
+  dex-trading-bot:
+    build:
+      context: .
+    depends_on:
+      - "neutron-node"
+    environment:
+      - CHAIN_ID=${CHAIN_ID:-test-1}
+      - NEUTROND_NODE=neutron-node
+      - RPC_ADDRESS=${RPC_ADDRESS:-http://neutron-node:26657}
+      - API_ADDRESS=${API_ADDRESS:-http://neutron-node:1317}
+      - TRADE_DURATION_SECONDS=${TRADE_DURATION_SECONDS:-}
+      - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
+    networks:
+      - neutron-testing
+
+volumes:
+  data:
+    name: neutron-testing-data
+    external: false
+
+networks:
+  neutron-testing:
+    name: neutron-testing
+    external: false
