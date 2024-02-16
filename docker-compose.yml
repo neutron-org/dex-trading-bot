@@ -10,10 +10,15 @@ services:
         # initialize the chain state
         bash /opt/neutron/network/init.sh
         bash /opt/neutron/network/init-neutrond.sh
-        bash /opt/neutron/network/start.sh
 
-        # keep container running after TRADE_DURATION_SECONDS has been reached
-        tail -f /dev/null
+        # run chain
+        echo "Starting $$CHAINID..."
+        neutrond start                             \
+            --log_level "$$LOG_LEVEL"              \
+            --home "./data/$$CHAINID"              \
+            --pruning=nothing                      \
+            --grpc.address="0.0.0.0:$$GRPCPORT"    \
+            --grpc-web.address="0.0.0.0:$$GRPCWEB"
       '
     container_name: neutron-node
     volumes:
@@ -24,7 +29,10 @@ services:
       - 26656:26656
       - 8090:9090
     environment:
-      - RUN_BACKGROUND=1
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
+      - CHAINID=${CHAIN_ID:-test-1}
+      - GRPCPORT=${GRPC_PORT:-9090}
+      - GRPCWEB=${GRPC_WEB:-9091}
     networks:
       - neutron-testing
 
