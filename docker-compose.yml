@@ -2,6 +2,19 @@ version: '3.8'
 services:
   neutron-node:
     image: neutron-node
+    command: >
+      /bin/bash -c '
+        #!/bin/bash
+        set -e
+
+        # initialize the chain state
+        bash /opt/neutron/network/init.sh
+        bash /opt/neutron/network/init-neutrond.sh
+        bash /opt/neutron/network/start.sh
+
+        # keep container running after TRADE_DURATION_SECONDS has been reached
+        tail -f /dev/null
+      '
     container_name: neutron-node
     volumes:
       - data:/opt/neutron/data
@@ -11,7 +24,7 @@ services:
       - 26656:26656
       - 8090:9090
     environment:
-      - RUN_BACKGROUND=0
+      - RUN_BACKGROUND=1
     networks:
       - neutron-testing
 
