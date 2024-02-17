@@ -10,6 +10,8 @@ neutrond() {
 # set which node we will talk to
 CHAIN_ID="${CHAIN_ID:-$(neutrond config chain-id)}"
 RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
+GAS_ADJUSTMENT="${GAS_ADJUSTMENT:-"1.5"}"
+GAS_PRICES="${GAS_PRICES:-"0.0025untrn"}"
 
 echo "CHAIN_ID: $CHAIN_ID"
 echo "NODE: $RPC_ADDRESS"
@@ -103,7 +105,7 @@ do
     `# disable_autoswap` \
     "$(repeat_with_comma "false"),$(repeat_with_comma "false")" \
     `# options` \
-    --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment 1.5 \
+    --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
     | jq -r '.txhash' \
     | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
     | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
@@ -185,7 +187,7 @@ do
         `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
         IMMEDIATE_OR_CANCEL \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment 1.5 \
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
         | jq -r '.txhash' \
         | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
         | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
@@ -216,7 +218,7 @@ do
           `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
           IMMEDIATE_OR_CANCEL \
           `# options` \
-          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment 1.5 \
+          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
           | jq -r '.txhash' \
           | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
           | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
@@ -251,7 +253,7 @@ do
       `# disable_autoswap` \
       false,false \
       `# options` \
-      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment 1.5 \
+      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
       | jq -r '.txhash' \
       | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
       | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
@@ -294,7 +296,7 @@ do
         `# list of fees` \
         "$fee0,$fee1" \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment 1.5 \
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
         | jq -r '.txhash' \
         | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
         | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
