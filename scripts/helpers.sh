@@ -23,7 +23,9 @@ createAndFundUser() {
             $tokens \
             --broadcast-mode sync \
             --output json \
-            --fees 500untrn \
+            --gas auto \
+            --gas-adjustment $GAS_ADJUSTMENT \
+            --gas-prices $GAS_PRICES \
             --yes \
     )
     if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
