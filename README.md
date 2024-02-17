@@ -47,3 +47,13 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
 
 eg. `make start-trade-bot TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=600`
 will start a persistent chain that for the first ~10min will generate ~500txs.
+
+# Troubleshooting
+
+The chain should be visible at http://localhost:26657 and REST at http://localhost:1317.
+
+If you cannot contact these addresses from within a different Docker service (such as a local indexer), try using:
+```
+RPC_API=http://host.docker.internal:26657
+REST_API=http://host.docker.internal:1317
+```
