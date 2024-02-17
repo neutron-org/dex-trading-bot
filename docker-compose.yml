@@ -44,7 +44,10 @@ services:
       context: .
     depends_on:
       - "neutron-node"
+    deploy:
+      replicas: ${BOTS:-1}
     environment:
+      - BOT_RAMPING_DELAY=${BOT_RAMPING_DELAY:-3} # seconds between starting each bot
       - CHAIN_ID=${CHAIN_ID:-test-1}
       - NEUTROND_NODE=neutron-node
       - RPC_ADDRESS=${RPC_ADDRESS:-http://neutron-node:26657}

@@ -65,7 +65,7 @@ indexes1=()
 amounts0=()
 amounts1=()
 fees=()
-amount=1000000000 # use a base billion tokens, assume coins have 6 decimal places
+amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will make $count/4 pools)
 for (( i=0; i<$count/4; i++ ))
 do
   index=$(( $RANDOM % $max_tick_index ))

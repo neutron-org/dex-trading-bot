@@ -10,6 +10,13 @@ createAndFundUser() {
     tokens=$1
     # create person name
     person=$(openssl rand -hex 12)
+    # stagger the creationi of wallets on chain to avoid race conditions and "out of sequence" issues here:
+    BOT_RAMPING_DELAY="${BOT_RAMPING_DELAY:-3}"
+    # enforce a minimum delay, a safe delay is at least one block space in seconds (which may be hard to predict)
+    # a 6 second delay was needed to run more than 40 bots reliably
+    BOT_RAMPING_DELAY=$(( $BOT_RAMPING_DELAY > 3 ? $BOT_RAMPING_DELAY : 3 ))
+    docker_service_number=$( curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json | jq -r '.Name | split("-") | last' )
+    sleep $(( $docker_service_number > 0 ? ($docker_service_number -1) * $BOT_RAMPING_DELAY : 0 ))
     echo "funding new user: $person with tokens $tokens" > /dev/stderr
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
