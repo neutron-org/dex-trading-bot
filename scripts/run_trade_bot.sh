@@ -172,7 +172,8 @@ do
     if (( $(bc <<< "$reserves0 > 0") ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
-      neutrond tx dex place-limit-order \
+      response="$(
+        neutrond tx dex place-limit-order \
         `# receiver` \
         "$(neutrond keys show "$person" --output json | jq -r .address)" \
         `# token in` \
@@ -187,11 +188,19 @@ do
         `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
         IMMEDIATE_OR_CANCEL \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-        | jq -r '.txhash' \
-        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+      )"
+      # check for bad Tx submissions
+      if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+      then
+        echo $response \
+          | jq -r '.txhash' \
+          | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
+          | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
+          | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
+      else
+        echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
+      fi
     else
       echo "making query: of current '$token1' ticks"
       reserves1=$( \
@@ -203,7 +212,8 @@ do
       if (( $(bc <<< "$reserves1 > 0") ))
       then
         echo "making place-limit-order: '$token0' -> '$token1'"
-        neutrond tx dex place-limit-order \
+        response="$(
+          neutrond tx dex place-limit-order \
           `# receiver` \
           "$(neutrond keys show "$person" --output json | jq -r .address)" \
           `# token in` \
@@ -218,11 +228,19 @@ do
           `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
           IMMEDIATE_OR_CANCEL \
           `# options` \
-          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-          | jq -r '.txhash' \
-          | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-          | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-          | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
+          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+        )"
+        # check for bad Tx submissions
+        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+        then
+          echo $response \
+            | jq -r '.txhash' \
+            | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
+            | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
+            | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
+        else
+          echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
+        fi
       fi
     fi
 
