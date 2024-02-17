@@ -92,6 +92,7 @@ start-trade-bot: build-trade-bot
 stop-trade-bot:
 	@$(COMPOSE) down -t0 --remove-orphans -v
 
+run-trade-bot: export TRADE_DURATION_SECONDS ?= 60
 run-trade-bot: stop-trade-bot build-trade-bot
 	@$(COMPOSE) up --abort-on-container-exit || true
 	$(MAKE) stop-trade-bot
