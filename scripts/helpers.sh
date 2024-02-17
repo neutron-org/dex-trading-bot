@@ -11,7 +11,7 @@ createAndFundUser() {
     # create person name
     person=$(openssl rand -hex 12)
     # stagger the creationi of wallets on chain to avoid race conditions and "out of sequence" issues here:
-    BOT_RAMPING_DELAY="${BOT_RAMPING_DELAY:-3}"
+    BOT_RAMPING_DELAY="${BOT_RAMPING_DELAY:-5}"
     # enforce a minimum delay, a safe delay is at least one block space in seconds (which may be hard to predict)
     # a 6 second delay was needed to run more than 40 bots reliably
     BOT_RAMPING_DELAY=$(( $BOT_RAMPING_DELAY > 3 ? $BOT_RAMPING_DELAY : 3 ))
