@@ -92,6 +92,6 @@ start-trade-bot: build-trade-bot
 stop-trade-bot:
 	@$(COMPOSE) down -t0 --remove-orphans -v
 
-run-trade-bot: build-trade-bot
+run-trade-bot: stop-trade-bot build-trade-bot
 	@$(COMPOSE) up --abort-on-container-exit || true
 	$(MAKE) stop-trade-bot
