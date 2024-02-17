@@ -121,7 +121,7 @@ amplitude2=-2000 # in seconds
 period2=300 # in seconds
 two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 
-trade_frequency="${TRADE_FREQUENCY_SECONDS:-60}"
+TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 max_epoch=$( [ ! -z $TRADE_DURATION_SECONDS ] && echo $(( $EPOCHSECONDS + $TRADE_DURATION_SECONDS )) || echo "" )
 max_epoch_reached=false
 
@@ -129,7 +129,7 @@ max_epoch_reached=false
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
-  sleep $(( $RANDOM % $trade_frequency ))
+  sleep $(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
 
   if [ ! -z $max_epoch ] && [ $max_epoch -lt $EPOCHSECONDS ]
   then
