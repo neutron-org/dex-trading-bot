@@ -48,6 +48,8 @@ services:
       - API_ADDRESS=${API_ADDRESS:-http://neutron-node:1317}
       - TRADE_DURATION_SECONDS=${TRADE_DURATION_SECONDS:-}
       - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
+      - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-1.5}
+      - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
