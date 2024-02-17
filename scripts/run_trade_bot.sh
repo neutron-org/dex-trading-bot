@@ -3,7 +3,7 @@ set -e
 
 # alias neutrond to a specific Docker neutrond
 neutrond() {
-  docker exec ${NEUTROND_NODE:-leader} neutrond "$@"
+  docker exec $NEUTROND_NODE neutrond "$@"
 }
 
 # set which node we will talk to
@@ -12,6 +12,13 @@ RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
 
 echo "CHAIN_ID: $CHAIN_ID"
 echo "NODE: $RPC_ADDRESS"
+
+# check docker connection status for daemon commands
+echo "Docker proxy call test: neutrond version $( neutrond version )"
+if [[ $? -ne 0 ]]; then
+    echo "Cannot send neutrond commands to Neutron testnet"
+    exit 1
+fi
 
 # check that NODE and CHAIN_ID details are correct
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
