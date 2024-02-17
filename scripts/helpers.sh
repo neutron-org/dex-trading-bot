@@ -16,7 +16,7 @@ createAndFundUser() {
     neutrond keys add $person --no-backup > /dev/stderr
     # send funds from frugal faucet friend (one of 3 denomwallet accounts)
     faucet="demowallet$(( $RANDOM % 3 + 1 ))"
-    tx_hash=$(
+    response=$(
         neutrond tx bank send \
             $( neutrond keys show $faucet -a ) \
             $( neutrond keys show $person -a ) \
@@ -25,15 +25,20 @@ createAndFundUser() {
             --output json \
             --fees 500untrn \
             --yes \
-            | jq -r '.txhash'
     )
-    # get tx result for msg
-    tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
+    if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+    then
+        tx_hash=$( echo $response | jq -r '.txhash' )
+        # get tx result for msg
+        tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
 
-    echo "funded new user: $person with tokens $tokens" > /dev/stderr
+        echo "funded new user: $person with tokens $tokens" > /dev/stderr
 
-    # return only person name for test usage
-    echo "$person"
+        # return only person name for test usage
+        echo "$person"
+    else
+        echo "funding new user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
+    fi
 }
 
 throwOnTxError() {
