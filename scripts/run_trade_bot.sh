@@ -29,7 +29,9 @@ neutrond config keyring-backend test
 bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
 
 # define the person to trade with as the "trader" account
-person="demowallet1"
+tokens=100000000000
+person=$( bash $SCRIPTPATH/helpers.sh createAndFundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
+address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args
 count=100; # should be divisible by 4
@@ -89,7 +91,7 @@ do
   # apply an amount to all tick indexes specified
   neutrond tx dex deposit \
     `# receiver` \
-    "$(neutrond keys show "$person" --output json | jq -r .address)" \
+    $address \
     `# token-a` \
     $token0 \
     `# token-b` \
@@ -179,7 +181,7 @@ do
       response="$(
         neutrond tx dex place-limit-order \
         `# receiver` \
-        "$(neutrond keys show "$person" --output json | jq -r .address)" \
+        $address \
         `# token in` \
         $token1 \
         `# token out` \
@@ -219,7 +221,7 @@ do
         response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
-          "$(neutrond keys show "$person" --output json | jq -r .address)" \
+          $address \
           `# token in` \
           $token0 \
           `# token out` \
@@ -259,7 +261,7 @@ do
     echo "making deposit: '$token0' + '$token1'"
     neutrond tx dex deposit \
       `# receiver` \
-      "$(neutrond keys show "$person" --output json | jq -r .address)" \
+      $address \
       `# token-a` \
       $token0 \
       `# token-b` \
@@ -306,7 +308,7 @@ do
       echo "making withdrawal: '$token0' + '$token1'"
       neutrond tx dex withdrawal \
         `# receiver` \
-        "$(neutrond keys show "$person" --output json | jq -r .address)" \
+        $address \
         `# token-a` \
         $token0 \
         `# token-b` \
