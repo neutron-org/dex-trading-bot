@@ -164,7 +164,7 @@ do
     echo "making query: of current '$token0' ticks"
     reserves0=$( \
       wget -q -O - $API_ADDRESS/neutron/dex/tick_liquidity/$token0%3C%3E$token1/$token0?pagination.limit=100 \
-      | jq "[.tickLiquidity[].poolReserves | select(.key.TickIndexTakerToMaker != null) | select((.key.TickIndexTakerToMaker | tonumber) > $goal_price) | if .reservesMakerDenom == null then 0 else .reservesMakerDenom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
     )
     # convert back to decimal notation with float precision
     reserves0=$( printf '%.0f\n' "$reserves0" )
@@ -196,7 +196,7 @@ do
       echo "making query: of current '$token1' ticks"
       reserves1=$( \
         wget -q -O - $API_ADDRESS/neutron/dex/tick_liquidity/$token0%3C%3E$token1/$token1?pagination.limit=100 \
-        | jq "[.tickLiquidity[].poolReserves | select(.key.TickIndexTakerToMaker != null) | select((.key.TickIndexTakerToMaker | tonumber) < $goal_price) | if .reservesMakerDenom == null then 0 else .reservesMakerDenom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+        | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) < $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
       )
       # convert back to decimal notation with float precision
       reserves1=$( printf '%.0f\n' "$reserves1" )
@@ -265,18 +265,18 @@ do
       wget -q -O - $API_ADDRESS/neutron/dex/user/deposits/$( neutrond keys show $person -a )?pagination.limit=1000 \
     )
     sorted_user_deposits=$(
-      echo "$user_deposits" | jq "[.Deposits[] | select(.pairID.token0 == \"$token0\") | select(.pairID.token1 == \"$token1\")] | sort_by((.centerTickIndex | tonumber))"
+      echo "$user_deposits" | jq "[.deposits[] | select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\")] | sort_by((.center_tick_index | tonumber))"
     )
 
     last_liquidity0=$( echo "$sorted_user_deposits" | jq '.[0]' )
     fee0=$( echo "$last_liquidity0" | jq -r '.fee' )
-    index0=$( echo "$last_liquidity0" | jq -r '.centerTickIndex' )
-    reserves0=$( echo "$last_liquidity0" | jq -r '.sharesOwned' )
+    index0=$( echo "$last_liquidity0" | jq -r '.center_tick_index' )
+    reserves0=$( echo "$last_liquidity0" | jq -r '.shares_owned' )
 
     last_liquidity1=$( echo "$sorted_user_deposits" | jq '.[-1]' )
     fee1=$( echo "$last_liquidity1" | jq -r '.fee' )
-    index1=$( echo "$last_liquidity1" | jq -r '.centerTickIndex' )
-    reserves1=$( echo "$last_liquidity1" | jq -r '.sharesOwned' )
+    index1=$( echo "$last_liquidity1" | jq -r '.center_tick_index' )
+    reserves1=$( echo "$last_liquidity1" | jq -r '.shares_owned' )
 
     # withdraw the end values
     if [ ! -z $reserves0 ] && [ ! -z $reserves1 ]
