@@ -20,12 +20,14 @@ if [[ $? -ne 0 ]]; then
     echo "Cannot send neutrond commands to Neutron testnet"
     exit 1
 fi
+# set daemon calls to read test keys
+neutrond config keyring-backend test
 
 # check that NODE and CHAIN_ID details are correct
 bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
 
 # define the person to trade with as the "trader" account
-person="trader"
+person="demowallet1"
 
 # add some helper functions to generate chain CLI args
 count=100; # should be divisible by 4
@@ -53,7 +55,7 @@ function get_token_1_reserves_amount {
     | awk '{printf("%.0f\n",$0+1)}' # round up only (in case we don't create enough reserves)
 }
 
-token_pairs=( '["stake","token"]' '["tokenA","tokenB"]' '["tokenB","tokenC"]' '["tokenA","tokenC"]' )
+token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","untrn"]' )
 
 # create initial tick array outside of max price amplitude
 fee_options=( 1 5 20 100 )

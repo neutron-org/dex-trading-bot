@@ -3,7 +3,7 @@ set -e
 
 # alias neutrond to a specific Docker neutrond
 neutrond() {
-    docker exec $NEUTROND_NODE neutrond "$@"
+    docker exec $NEUTROND_NODE neutrond --home /opt/neutron/data/$CHAIN_ID "$@"
 }
 
 createAndFundUser() {
