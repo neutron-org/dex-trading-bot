@@ -2,8 +2,9 @@
 set -e
 
 # alias neutrond to a specific Docker neutrond
+SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 neutrond() {
-  docker exec $NEUTROND_NODE neutrond "$@"
+  bash $SCRIPTPATH/helpers.sh neutrond "$@"
 }
 
 # set which node we will talk to
@@ -21,7 +22,6 @@ if [[ $? -ne 0 ]]; then
 fi
 
 # check that NODE and CHAIN_ID details are correct
-SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
 
 # define the person to trade with as the "trader" account
