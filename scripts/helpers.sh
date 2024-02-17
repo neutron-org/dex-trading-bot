@@ -13,11 +13,12 @@ createAndFundUser() {
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
     neutrond keys add $person --no-backup <<< $'asdfasdf\nn' >/dev/null
-    # send funds from frugal faucet friend (Fred)
+    # send funds from frugal faucet friend (one of 3 denomwallet accounts)
+    faucet="demowallet$(( $RANDOM % 3 + 1 ))"
     tx_hash=$(
         neutrond tx bank send \
-            $( neutrond keys show fred --output json | jq -r .address ) \
-            $( neutrond keys show $person --output json | jq -r .address ) \
+            $( neutrond keys show $faucet -a ) \
+            $( neutrond keys show $person -a ) \
             $tokens \
             --broadcast-mode sync \
             --output json \
