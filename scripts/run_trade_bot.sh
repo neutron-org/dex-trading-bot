@@ -10,7 +10,7 @@ neutrond() {
 # set which node we will talk to
 CHAIN_ID="${CHAIN_ID:-$(neutrond config chain-id)}"
 RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
-GAS_ADJUSTMENT="${GAS_ADJUSTMENT:-"1.5"}"
+GAS_ADJUSTMENT="${GAS_ADJUSTMENT:-"2"}"
 GAS_PRICES="${GAS_PRICES:-"0.0025untrn"}"
 
 echo "CHAIN_ID: $CHAIN_ID"
