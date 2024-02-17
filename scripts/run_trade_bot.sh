@@ -129,7 +129,9 @@ max_epoch_reached=false
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
-  sleep $(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
+  DELAY=$(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
+  echo ".. will delay for: $DELAY"
+  sleep $DELAY
 
   if [ ! -z $max_epoch ] && [ $max_epoch -lt $EPOCHSECONDS ]
   then
@@ -143,6 +145,8 @@ do
     pair_index+=1
     token0=$( echo $token_pair | jq -r .[0] )
     token1=$( echo $token_pair | jq -r .[1] )
+
+    echo "calculating: a swap on the pair '$token0' and '$token1'..."
 
     # create random fee tier to use in this iteration
     fee=${fee_options[$(( $RANDOM % 4 ))]}
