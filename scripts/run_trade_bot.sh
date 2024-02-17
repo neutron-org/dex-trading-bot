@@ -22,8 +22,6 @@ if [[ $? -ne 0 ]]; then
     echo "Cannot send neutrond commands to Neutron testnet"
     exit 1
 fi
-# set daemon calls to read test keys
-neutrond config keyring-backend test
 
 # check that NODE and CHAIN_ID details are correct
 bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID

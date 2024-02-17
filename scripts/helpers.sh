@@ -10,9 +10,10 @@ createAndFundUser() {
     tokens=$1
     # create person name
     person=$(openssl rand -hex 12)
+    echo "funding new user: $person with tokens $tokens" > /dev/stderr
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
-    neutrond keys add $person --no-backup <<< $'asdfasdf\nn' >/dev/null
+    neutrond keys add $person --no-backup > /dev/stderr
     # send funds from frugal faucet friend (one of 3 denomwallet accounts)
     faucet="demowallet$(( $RANDOM % 3 + 1 ))"
     tx_hash=$(
@@ -22,11 +23,14 @@ createAndFundUser() {
             $tokens \
             --broadcast-mode sync \
             --output json \
+            --fees 500untrn \
             --yes \
             | jq -r '.txhash'
     )
     # get tx result for msg
-    tx_result=$(bash ./scripts/test_helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash")
+    tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
+
+    echo "funded new user: $person with tokens $tokens" > /dev/stderr
 
     # return only person name for test usage
     echo "$person"

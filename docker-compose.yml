@@ -11,6 +11,9 @@ services:
         bash /opt/neutron/network/init.sh
         bash /opt/neutron/network/init-neutrond.sh
 
+        # set default keyring configuration to local test keys
+        neutrond --home "./data/$$CHAINID" config keyring-backend test
+
         # run chain
         echo "Starting $$CHAINID..."
         neutrond start                             \
