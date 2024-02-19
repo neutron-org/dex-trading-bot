@@ -54,7 +54,7 @@ will start a persistent chain that for the first ~10min (7min+ramping) will gene
 
 The chain should be visible at http://localhost:26657 and REST at http://localhost:1317.
 
-If you cannot these addresses from within a different Docker service (such as a local indexer), try using:
+If you cannot contact these addresses from within a different Docker service (such as a local indexer), try using:
 ```
 RPC_API=http://host.docker.internal:26657
 REST_API=http://host.docker.internal:1317
