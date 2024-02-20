@@ -128,7 +128,6 @@ two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 
 TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 max_epoch=$( [ ! -z $TRADE_DURATION_SECONDS ] && echo $(( $EPOCHSECONDS + $TRADE_DURATION_SECONDS )) || echo "" )
-max_epoch_reached=false
 
 # respond to price changes forever
 while true
