@@ -106,6 +106,32 @@ waitForAllBotsToSynchronizeToStage() {
     fi
 }
 
+getFaucetWallet() {
+    # get passed bot number or derive it from environment
+    bot_number=${1:-"$( getBotNumber )"}
+    # if mnenomics are defined then take wallet from a given mnemonic
+    MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
+    mnemonics_array=()
+    i=1
+    while mnemonic=$(echo "$MNEMONICS" | cut -d\; -f$i | xargs echo -n); [ -n "$mnemonic" ]
+    do
+        mnemonics_array+=( "$mnemonic" )
+        i=$(( i+1 ))
+    done
+    if [ "${#mnemonics_array[@]}" -gt 0 ]
+    then
+        # pick the mnenomic to use out of the valid array
+        bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
+        mnemonic=$(echo "${mnemonics_array[$bot_index]}")
+        # add the faucet account
+        person="faucet"
+        echo "$mnemonic" | neutrond keys add $person --recover > /dev/null
+        echo "$person";
+    else
+        echo "demowallet$(( ($bot_number - 1) % 3 + 1 ))"
+    fi
+}
+
 createAndFundUser() {
     tokens=$1
     # create person name
@@ -121,8 +147,8 @@ createAndFundUser() {
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
     neutrond keys add $person --no-backup > /dev/stderr
-    # send funds from frugal faucet friend (one of 3 denomwallet accounts)
-    faucet="demowallet$(( $RANDOM % 3 + 1 ))"
+    # send funds from frugal faucet friend (from MNEMONICS or demowallet)
+    faucet="$( getFaucetWallet )"
     response=$(
         neutrond tx bank send \
             $( neutrond keys show $faucet -a ) \

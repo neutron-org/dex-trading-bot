@@ -62,6 +62,8 @@ services:
       - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
       - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-2}
       - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
+      - MNEMONICS=${MNEMONICS}
+      - MNEMONIC=${MNEMONIC}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
