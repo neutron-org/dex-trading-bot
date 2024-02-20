@@ -44,7 +44,7 @@ createAndFundUser() {
             --gas auto \
             --gas-adjustment $GAS_ADJUSTMENT \
             --gas-prices $GAS_PRICES \
-            --yes \
+            --yes
     )
     if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
     then
