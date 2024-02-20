@@ -1,15 +1,16 @@
 #!/bin/bash
 set -e
 
-# alias neutrond to a specific Docker neutrond
+# make script path consistent
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
-neutrond() {
-  bash $SCRIPTPATH/helpers.sh neutrond "$@"
-}
 
-# set which node we will talk to
-CHAIN_ID="${CHAIN_ID:-$(neutrond config chain-id)}"
-RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
+# setup neutrond config in default config folder
+mkdir /root/.neutrond
+CHAIN_ID="${CHAIN_ID:-neutron}"
+RPC_ADDRESS="${RPC_ADDRESS}"
+neutrond config chain-id $CHAIN_ID
+neutrond config node $RPC_ADDRESS
+neutrond config keyring-backend test
 
 echo "CHAIN_ID: $CHAIN_ID"
 echo "NODE: $RPC_ADDRESS"

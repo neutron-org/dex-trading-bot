@@ -1,11 +1,6 @@
 #!/bin/bash
 set -e
 
-# alias neutrond to a specific Docker neutrond
-neutrond() {
-    docker exec $NEUTROND_NODE neutrond --home /opt/neutron/data/$CHAIN_ID "$@"
-}
-
 getDockerEnv() {
     # get this Docker container env info
     curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
@@ -128,7 +123,8 @@ getFaucetWallet() {
         echo "$mnemonic" | neutrond keys add $person --recover > /dev/null
         echo "$person";
     else
-        echo "demowallet$(( ($bot_number - 1) % 3 + 1 ))"
+        echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
+        exit 1
     fi
 }
 
@@ -147,7 +143,7 @@ createAndFundUser() {
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
     neutrond keys add $person --no-backup > /dev/stderr
-    # send funds from frugal faucet friend (from MNEMONICS or demowallet)
+    # send funds from frugal faucet friend (from MNEMONICS)
     faucet="$( getFaucetWallet )"
     response=$(
         neutrond tx bank send \
