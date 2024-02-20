@@ -141,7 +141,7 @@ do
   if [ ! -z $max_epoch ] && [ $max_epoch -lt $EPOCHSECONDS ]
   then
     echo "TRADE_DURATION_SECONDS has been reached";
-    exit 0
+    break
   fi
 
   pair_index=0
@@ -333,3 +333,29 @@ do
   done
 
 done
+
+# if this is a fleet of bots, only allow the last bot to finish the service
+# note: this assumes that any previous runs of the network was correctly closed
+#       eg. using `make stop-trade-bot` or `make test-trade-bot`
+#       if the network was not brought down correctly the service ID numbers
+#       may not match the number of BOTS set
+
+if [ "$BOTS" -gt "1" ]
+then
+
+  bot_number=$( bash $SCRIPTPATH/helpers.sh getBotNumber )
+  bot_total="$BOTS"
+
+  # wait approximate time for other bots to finish
+  echo "waiting for other bots to finish"
+  if [ "$bot_number" -ne "$bot_total" ]
+  then
+    wait_for_the_end=$(( ($bot_total - $bot_number) * $BOT_RAMPING_DELAY ))
+    sleep "${wait_for_the_end:-0}"
+  fi
+
+  # add ~3-4 block heights of time tolerance for randomness in trades amongst bots
+  sleep 20;
+fi
+
+echo "exiting trade script"
