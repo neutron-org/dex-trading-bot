@@ -9,7 +9,7 @@ neutrond() {
 getBotNumber() {
     docker_service_number=$(
         curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json \
-        | jq -r '.Name | split("-") | last'
+        | jq -r '.Config.Labels["com.docker.compose.container-number"]'
     )
     if [ "$docker_service_number" -gt "0" ]
     then
