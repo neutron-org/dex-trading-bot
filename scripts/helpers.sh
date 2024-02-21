@@ -31,7 +31,8 @@ getBotStartTime() {
     # get global start time from the creation of the first bot
     global_start_time="$( echo "$( getDockerEnvs )" | jq -r '.[0].Created' )"
     global_start_epoch="$( date -u -d "$global_start_time" -D '%Y-%m-%dT%H:%M:%S' +'%s' )"
-    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $global_start_epoch ))"
+    start_up_time="15"
+    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $global_start_epoch + $start_up_time ))"
 }
 getBotEndTime() {
     bot_number=${1:-"$( getBotNumber )"}

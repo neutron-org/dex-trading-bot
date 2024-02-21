@@ -370,10 +370,11 @@ echo "TRADE_DURATION_SECONDS has been reached";
 if [ "$BOTS" -gt "1" ]
 then
   # wait approximate time for other bots to finish
-  echo "waiting for other bots to finish"
   bot_total="$BOTS"
   end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime $bot_total )
-  sleep $(( $EPOCHSECONDS - $end_epoch ))
+  delay=$(( $end_epoch - $EPOCHSECONDS > 0 ? $end_epoch - $EPOCHSECONDS : 0 ))
+  echo "waiting for other bots to finish ($delay seconds)"
+  sleep "$delay"
 
   # add ~2 block heights of time tolerance for randomness in trades amongst bots
   sleep 10;
