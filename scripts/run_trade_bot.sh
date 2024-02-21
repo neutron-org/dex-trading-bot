@@ -27,7 +27,7 @@ bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
 
 # define the person to trade with as the "trader" account
 tokens=100000000000
-person=$( bash $SCRIPTPATH/helpers.sh createAndFundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
+person=$( bash $SCRIPTPATH/helpers.sh fundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
 address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args

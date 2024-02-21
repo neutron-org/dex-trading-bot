@@ -11,7 +11,7 @@ FROM "$NEUTRON_IMAGE" as neutrond-binary
 FROM docker:24.0.5-cli
 
 # add additional dependencies for the testnet scripts
-RUN apk add bash curl grep openssl jq;
+RUN apk add bash curl grep jq;
 
 COPY --from=neutrond-binary /bin/neutrond /usr/bin
 
