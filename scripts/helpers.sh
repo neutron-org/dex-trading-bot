@@ -7,18 +7,30 @@ neutrond() {
 }
 
 getDockerEnv() {
+    # optionally ask for a different bot number
+    bot_number=${1:-0}
     # get this Docker container env info
-    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+    docker_env="$( curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json )"
+    # return asked for bot env
+    if [ "$bot_number" -gt 0 ] && [ "$( getBotNumber "$docker_env" )" -ne "$bot_number" ]
+    then
+        # return the matching bot number from the list of all bot Docker envs
+        docker_envs=$( getDockerEnvs "$docker_env" )
+        echo "$docker_envs" | jq -r ".[] | select(.Config.Labels[\"com.docker.compose.container-number\"] == \"$bot_number\")"
+    else
+        echo "$docker_env"
+    fi
 }
 getDockerEnvs() {
-    docker_env=${1:-"$( getDockerEnv )"}
+    docker_env="${1:-"$( getDockerEnv )"}"
     docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
     docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
 }
 
 getBotNumber() {
+    docker_env="${1:-"$( getDockerEnv )"}"
     docker_service_number=$(
-        echo "$( getDockerEnv )" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
+        echo "$docker_env" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
     )
     if [ "$docker_service_number" -gt "0" ]
     then
@@ -28,11 +40,27 @@ getBotNumber() {
 
 getBotStartTime() {
     bot_number=${1:-"$( getBotNumber )"}
-    # get global start time from the creation of the first bot
-    global_start_time="$( echo "$( getDockerEnvs )" | jq -r '.[0].Created' )"
-    global_start_epoch="$( date -u -d "$global_start_time" -D '%Y-%m-%dT%H:%M:%S' +'%s' )"
-    start_up_time="15"
-    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $global_start_epoch + $start_up_time ))"
+    # source the start time from the first bot
+    if [ "$bot_number" -eq "1" ]
+    then
+        first_bot_start_time="$EPOCHSECONDS"
+        echo "$first_bot_start_time"
+        # write start time to file for other bots to query
+        echo "$first_bot_start_time" > start_time
+    else
+        first_bot_container="$( echo "$( getDockerEnv 1 )" | jq -r '.Config.Hostname' )"
+        while [ -z "$first_bot_start_time" ]
+        do
+            first_bot_start_time=$( docker exec $first_bot_container cat start_time 2>/dev/null || true )
+            if [ -z "$first_bot_start_time" ]
+            then
+                echo "waiting for first bot to start..." > /dev/stderr
+                sleep 1
+            fi
+        done
+        echo "waited. found: $first_bot_start_time" > /dev/stderr
+        echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $first_bot_start_time ))"
+    fi
 }
 getBotEndTime() {
     bot_number=${1:-"$( getBotNumber )"}
