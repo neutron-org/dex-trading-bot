@@ -126,22 +126,36 @@ amplitude2=-2000 # in seconds
 period2=300 # in seconds
 two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 
+# delay bots as part of startup ramping process
+start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
+sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
+
+# add function to check when the script should finish
+end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime )
+function check_duration {
+  extra_time="${1:-0}"
+  if [ ! -z $end_epoch ] && [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+  then
+    echo "duration reached";
+  fi
+}
+
 TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
-max_epoch=$( [ ! -z $TRADE_DURATION_SECONDS ] && echo $(( $EPOCHSECONDS + $TRADE_DURATION_SECONDS )) || echo "" )
 
 # respond to price changes forever
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
-  DELAY=$(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
-  echo ".. will delay for: $DELAY"
-  sleep $DELAY
+  delay=$(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
 
-  if [ ! -z $max_epoch ] && [ $max_epoch -lt $EPOCHSECONDS ]
+  # check if duration will be reached
+  if [ ! -z "$( check_duration $delay )" ]
   then
-    echo "TRADE_DURATION_SECONDS has been reached";
     break
   fi
+
+  echo ".. will delay for: $delay"
+  sleep $delay
 
   pair_index=0
   for token_pair in ${token_pairs[@]}
@@ -252,6 +266,12 @@ do
       fi
     fi
 
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
+
     # - replace the end pieces of liquidity with values closer to the current price
 
     # determine new indexes close to the current price
@@ -284,6 +304,12 @@ do
       | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
       | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
       | xargs -I{} echo "{} deposited: new close-to-price ticks $new_index0, $new_index1"
+
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
 
     # find reserves to withdraw
     echo "making query: finding '$token0', '$token1' deposits to withdraw"
@@ -333,6 +359,8 @@ do
 
 done
 
+echo "TRADE_DURATION_SECONDS has been reached";
+
 # if this is a fleet of bots, only allow the last bot to finish the service
 # note: this assumes that any previous runs of the network was correctly closed
 #       eg. using `make stop-trade-bot` or `make test-trade-bot`
@@ -341,20 +369,14 @@ done
 
 if [ "$BOTS" -gt "1" ]
 then
-
-  bot_number=$( bash $SCRIPTPATH/helpers.sh getBotNumber )
-  bot_total="$BOTS"
-
   # wait approximate time for other bots to finish
   echo "waiting for other bots to finish"
-  if [ "$bot_number" -ne "$bot_total" ]
-  then
-    wait_for_the_end=$(( ($bot_total - $bot_number) * $BOT_RAMPING_DELAY ))
-    sleep "${wait_for_the_end:-0}"
-  fi
+  bot_total="$BOTS"
+  end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime $bot_total )
+  sleep $(( $EPOCHSECONDS - $end_epoch ))
 
-  # add ~3-4 block heights of time tolerance for randomness in trades amongst bots
-  sleep 20;
+  # add ~2 block heights of time tolerance for randomness in trades amongst bots
+  sleep 10;
 fi
 
 echo "exiting trade script"

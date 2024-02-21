@@ -17,6 +17,20 @@ getBotNumber() {
     fi
 }
 
+getBotStartTime() {
+    bot_number=${1:-"$( getBotNumber )"}
+    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $EPOCHSECONDS ))"
+}
+getBotEndTime() {
+    bot_number=${1:-"$( getBotNumber )"}
+    TRADE_DURATION_SECONDS="${TRADE_DURATION_SECONDS:-0}"
+    if [ $TRADE_DURATION_SECONDS -gt 0 ]
+    then
+        start_time=$( getBotStartTime $bot_number )
+        echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
+    fi
+}
+
 createAndFundUser() {
     tokens=$1
     # create person name
