@@ -6,10 +6,19 @@ neutrond() {
     docker exec $NEUTROND_NODE neutrond --home /opt/neutron/data/$CHAIN_ID "$@"
 }
 
+getDockerEnv() {
+    # get this Docker container env info
+    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+}
+getDockerEnvs() {
+    docker_env=${1:-"$( getDockerEnv )"}
+    docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
+    docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
+}
+
 getBotNumber() {
     docker_service_number=$(
-        curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json \
-        | jq -r '.Config.Labels["com.docker.compose.container-number"]'
+        echo "$( getDockerEnv )" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
     )
     if [ "$docker_service_number" -gt "0" ]
     then
@@ -19,7 +28,10 @@ getBotNumber() {
 
 getBotStartTime() {
     bot_number=${1:-"$( getBotNumber )"}
-    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $EPOCHSECONDS ))"
+    # get global start time from the creation of the first bot
+    global_start_time="$( echo "$( getDockerEnvs )" | jq -r '.[0].Created' )"
+    global_start_epoch="$( date -u -d "$global_start_time" -D '%Y-%m-%dT%H:%M:%S' +'%s' )"
+    echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $global_start_epoch ))"
 }
 getBotEndTime() {
     bot_number=${1:-"$( getBotNumber )"}
