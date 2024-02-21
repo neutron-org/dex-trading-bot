@@ -11,6 +11,11 @@ services:
         bash /opt/neutron/network/init.sh
         bash /opt/neutron/network/init-neutrond.sh
 
+        # allow CORS requests from dev localhost origin
+        BASE_DIR=/opt/neutron/data
+        CHAIN_DIR="$$BASE_DIR/$$CHAINID"
+        sed -i -e "s/cors_allowed_origins = \[\]/cors_allowed_origins = $$CORS_ALLOWED_ORIGINS/g" "$$CHAIN_DIR/config/config.toml"
+
         # run chain
         echo "Starting $$CHAINID..."
         neutrond start                             \
@@ -33,6 +38,7 @@ services:
       - CHAINID=${CHAIN_ID:-test-1}
       - GRPCPORT=${GRPC_PORT:-9090}
       - GRPCWEB=${GRPC_WEB:-9091}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-["*"]}
     networks:
       - neutron-testing
 
