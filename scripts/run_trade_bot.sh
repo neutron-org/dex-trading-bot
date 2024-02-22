@@ -4,30 +4,12 @@ set -e
 # make script path consistent
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 
-# setup neutrond config in default config folder
-mkdir /root/.neutrond
-CHAIN_ID="${CHAIN_ID:-neutron}"
-RPC_ADDRESS="${RPC_ADDRESS}"
-neutrond config chain-id $CHAIN_ID
-neutrond config node $RPC_ADDRESS
-neutrond config keyring-backend test
-
-echo "CHAIN_ID: $CHAIN_ID"
-echo "NODE: $RPC_ADDRESS"
-
-# check docker connection status for daemon commands
-echo "Docker proxy call test: neutrond version $( neutrond version )"
-if [[ $? -ne 0 ]]; then
-    echo "Cannot send neutrond commands to Neutron testnet"
-    exit 1
-fi
-
-# check that NODE and CHAIN_ID details are correct
-bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
+# wait for chain to be ready
+bash $SCRIPTPATH/check_chain_status.sh
 
 # define the person to trade with as the "trader" account
 tokens=100000000000
-person=$( bash $SCRIPTPATH/helpers.sh fundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
+person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
 address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args

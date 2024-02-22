@@ -47,6 +47,8 @@ services:
       context: .
     depends_on:
       - "neutron-node"
+    entrypoint: ["/bin/bash", "./scripts/setup_entrypoint.sh"]
+    command: ["/bin/bash", "./scripts/run_trade_bot.sh"]
     deploy:
       replicas: ${BOTS:-1}
     environment:

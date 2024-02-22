@@ -118,13 +118,13 @@ createUser() {
     # add the new account under hostname
     person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
     echo "creating user: $person" > /dev/stderr
-    echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
+    # ignore duplicate user errors
+    echo "$mnemonic" | neutrond keys add $person --recover 2>/dev/null > /dev/stderr
     echo "$person";
 }
 
 getFaucetWallet() {
-    # get passed bot number or derive it from environment
-    bot_number=${1:-"$( getBotNumber )"}
+    docker_env="${1:-"$( getDockerEnv )"}"
     # if mnenomics are defined then take wallet from a given mnemonic
     MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
     mnemonics_array=()
@@ -137,6 +137,7 @@ getFaucetWallet() {
     if [ "${#mnemonics_array[@]}" -gt 0 ]
     then
         # pick the mnenomic to use out of the valid array
+        bot_number="$( getBotNumber )"
         bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
         mnemonic=$(echo "${mnemonics_array[$bot_index]}")
         # add the faucet account
@@ -149,42 +150,25 @@ getFaucetWallet() {
     fi
 }
 
-fundUser() {
-    tokens=$1
-    person="${2:-$( createUser )}"
-    # stagger the funding of wallets on chain to avoid race conditions and "out of sequence" issues here:
-    # a 6 second delay was needed to run more than 40 bots reliably
-    funding_delay=6
-    bot_number=$( getBotNumber )
-    sleep $(( $bot_number > 0 ? ($bot_number -1) * $funding_delay : 0 ))
-    echo "funding user: $person with tokens $tokens" > /dev/stderr
-    # send funds from frugal faucet friend (from MNEMONICS)
-    faucet="$( getFaucetWallet )"
-    response=$(
-        neutrond tx bank send \
-            $( neutrond keys show $faucet -a ) \
-            $( neutrond keys show $person -a ) \
-            $tokens \
-            --broadcast-mode sync \
-            --output json \
-            --gas auto \
-            --gas-adjustment $GAS_ADJUSTMENT \
-            --gas-prices $GAS_PRICES \
-            --yes
-    )
-    if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-    then
-        tx_hash=$( echo $response | jq -r '.txhash' )
-        # get tx result for msg
-        tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
-
-        echo "funded new user: $person with tokens $tokens" > /dev/stderr
-
-        # return only person name for test usage
-        echo "$person"
-    else
-        echo "funding new user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
-    fi
+getFundedUser() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    # add the new account under hostname
+    person="$( createUser "$docker_env" )"
+    address="$( neutrond keys show $person -a )"
+    # wait for the user to be funded
+    token_count=0
+    while [ "$token_count" -eq 0 ]
+    do
+        balances=$( neutrond query bank balances "$address" --output json )
+        token_count=$( echo "$balances" | jq -r '.balances | length' )
+        if [ "$token_count" -eq 0 ]
+        then
+            echo "funding: user $person has no tokens, waiting for funds..." > /dev/stderr
+            sleep 3
+        fi
+    done
+    echo "funding: user $person is funded!" > /dev/stderr
+    echo "$person"
 }
 
 throwOnTxError() {
