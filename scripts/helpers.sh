@@ -7,19 +7,8 @@ neutrond() {
 }
 
 getDockerEnv() {
-    # optionally ask for a different bot number
-    bot_number=${1:-0}
     # get this Docker container env info
-    docker_env="$( curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json )"
-    # return asked for bot env
-    if [ "$bot_number" -gt 0 ] && [ "$( getBotNumber "$docker_env" )" -ne "$bot_number" ]
-    then
-        # return the matching bot number from the list of all bot Docker envs
-        docker_envs=$( getDockerEnvs "$docker_env" )
-        echo "$docker_envs" | jq -r ".[] | select(.Config.Labels[\"com.docker.compose.container-number\"] == \"$bot_number\")"
-    else
-        echo "$docker_env"
-    fi
+    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
 }
 getDockerEnvs() {
     docker_env="${1:-"$( getDockerEnv )"}"
@@ -37,6 +26,21 @@ getBotNumber() {
         echo "$docker_service_number";
     fi
 }
+getDockerEnvOfBotNumber() {
+    # ask for a specific bot number
+    bot_number=$1
+    # get this Docker container env info
+    docker_env="$( getDockerEnv )"
+    # return asked for bot env
+    if [ "$bot_number" -gt 0 ] && [ "$( getBotNumber "$docker_env" )" -ne "$bot_number" ]
+    then
+        # return the matching bot number from the list of all bot Docker envs
+        docker_envs=$( getDockerEnvs "$docker_env" )
+        echo "$docker_envs" | jq -r ".[] | select(.Config.Labels[\"com.docker.compose.container-number\"] == \"$bot_number\")"
+    else
+        echo "$docker_env"
+    fi
+}
 
 getBotStartTime() {
     bot_number=${1:-"$( getBotNumber )"}
@@ -48,7 +52,7 @@ getBotStartTime() {
         # write start time to file for other bots to query
         echo "$first_bot_start_time" > start_time
     else
-        first_bot_container="$( echo "$( getDockerEnv 1 )" | jq -r '.Config.Hostname' )"
+        first_bot_container="$( echo "$( getDockerEnvOfBotNumber 1 )" | jq -r '.Config.Hostname' )"
         while [ -z "$first_bot_start_time" ]
         do
             first_bot_start_time=$( docker exec $first_bot_container cat start_time 2>/dev/null || true )
