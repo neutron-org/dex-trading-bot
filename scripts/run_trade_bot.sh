@@ -361,23 +361,7 @@ done
 
 echo "TRADE_DURATION_SECONDS has been reached";
 
-# if this is a fleet of bots, only allow the last bot to finish the service
-# note: this assumes that any previous runs of the network was correctly closed
-#       eg. using `make stop-trade-bot` or `make test-trade-bot`
-#       if the network was not brought down correctly the service ID numbers
-#       may not match the number of BOTS set
-
-if [ "$BOTS" -gt "1" ]
-then
-  # wait approximate time for other bots to finish
-  bot_total="$BOTS"
-  end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime $bot_total )
-  delay=$(( $end_epoch - $EPOCHSECONDS > 0 ? $end_epoch - $EPOCHSECONDS : 0 ))
-  echo "waiting for other bots to finish ($delay seconds)"
-  sleep "$delay"
-
-  # add ~2 block heights of time tolerance for randomness in trades amongst bots
-  sleep 10;
-fi
+# wait for all bots to finish before exiting
+bash $SCRIPTPATH/helpers.sh waitForOtherBotsToEnd
 
 echo "exiting trade script"

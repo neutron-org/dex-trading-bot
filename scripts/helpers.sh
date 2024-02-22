@@ -75,6 +75,30 @@ getBotEndTime() {
         echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
     fi
 }
+waitForOtherBotsToEnd() {
+    docker_envs="$( getDockerEnvs )"
+    docker_envs_count="$( echo "$docker_envs" | jq -r 'length' )"
+    if [ "$docker_envs_count" -gt 1 ]
+    then
+        # write end time to file for other bots to query
+        echo "$EPOCHSECONDS" > end_time
+        # query all containers for their end time, one by one
+        for (( i=0; i<$docker_envs_count; i++ ))
+        do
+            docker_env="$( echo "$docker_envs" | jq ".[$i]" )"
+            nth_bot_container="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
+            nth_bot_end_time=""
+            while [ -z "$nth_bot_end_time" ]
+            do
+                nth_bot_end_time=$( docker exec $nth_bot_container cat end_time 2>/dev/null || true )
+                if [ -z "$nth_bot_end_time" ]
+                then
+                    sleep 3
+                fi
+            done
+        done
+    fi
+}
 
 createAndFundUser() {
     tokens=$1
