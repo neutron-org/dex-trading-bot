@@ -45,7 +45,8 @@ token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","unt
 tick_count=100 # should be divisible by 2
 tick_amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 fee_options=( 1 5 20 100 )
-max_tick_index=12000
+deposit_index_accuracy=12000 # deposited ticks will fall within this accuracy range from price goal, must be >swap_index_accuracy
+swap_index_accuracy=1000 # swapped tick goals will fall within this accuracy range from price goal
 indexes=()
 indexes0=()
 indexes1=()
@@ -54,11 +55,11 @@ amounts1=()
 fees=()
 for (( i=0; i<$tick_count/2; i++ ))
 do
-  index=$(( $RANDOM % $max_tick_index ))
+  index=$(( $RANDOM % $deposit_index_accuracy ))
   # pick another index if this one was already used
   while [[ " ${indexes[*]} " =~ " ${index} " ]]
   do
-      index=$(( $RANDOM % $max_tick_index ))
+      index=$(( $RANDOM % $deposit_index_accuracy ))
   done
   indexes+=( $index )
   indexes0+=( -$index )
@@ -160,8 +161,9 @@ do
       | awk '{printf("%d\n",$0+0.5)}' \
     )
 
-    # add some randomness into price goal
-    goal_price=$(( $current_price + $RANDOM % 1000 - 500 ))
+    # add some randomness into price goal (within swap_index_accuracy)
+    deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
+    goal_price=$(( $current_price + $deviation ))
 
     # - make a swap to get to current price
 
@@ -258,9 +260,10 @@ do
 
     # - replace the end pieces of liquidity with values closer to the current price
 
-    # determine new indexes close to the current price
-    new_index0=$(( $current_price - 1000 - $RANDOM % 1000 ))
-    new_index1=$(( $current_price + 1000 + $RANDOM % 1000 ))
+    # determine new indexes close to the current price (within accuracy, but not within min accuracy)
+    deposit_outside_swap_accuracy=$(( $deposit_index_accuracy - $swap_index_accuracy ))
+    new_index0=$(( $current_price - $swap_index_accuracy - $RANDOM % $deposit_outside_swap_accuracy ))
+    new_index1=$(( $current_price + $swap_index_accuracy + $RANDOM % $deposit_outside_swap_accuracy ))
 
     # add these extra ticks to prevent swapping though all ticks errors
     # we deposit first to lessen the cases where we have entirely one-sided liquidity
