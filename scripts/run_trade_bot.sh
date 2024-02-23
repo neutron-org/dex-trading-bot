@@ -33,7 +33,7 @@ function get_joined_array {
   values=()
   for (( i=0; i<$count; i++ ))
   do
-    values+=( `$2` `$3` `$4` )
+    values+=( `$2 $i "${values[*]}" "$3" "$4"` )
   done
   echo "$( join_with_comma "${values[@]}" )"
 }
@@ -45,21 +45,32 @@ LP_FEES="${LP_FEES:-[1, 5, 20, 100]}"
 # indexes will fall within $accuracy distance of the current target price
 deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
 swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
-indexes=()
-indexes0=()
-indexes1=()
-for (( i=0; i<$tick_count_on_each_side; i++ ))
-do
-  index=$(( $RANDOM % $deposit_index_accuracy ))
-  # pick another index if this one was already used
-  while [[ " ${indexes[*]} " =~ " ${index} " ]]
+
+function get_integer_between {
+  lower=${1:-0}
+  upper=${2:-1}
+  difference=$(( $upper - $lower ))
+  # choose a random number: $lower <= $result < $upper
+  echo "$(( $lower + $RANDOM % $difference ))"
+}
+
+function get_unique_integers_between {
+  array_index=$1
+  array_string=$2
+  lower=$3
+  upper=$4
+  # choose a random number: $lower <= $result < $upper
+  result=$( get_integer_between "$lower" "$upper" )
+  # pick another result if this one was already picked (within reason)
+  # having duplicate indexes will cause an error message (but not an exception)
+  local tries=0
+  while [[ " ${array_string} " =~ " ${result} " ]] && [ $tries -lt 30 ]
   do
-      index=$(( $RANDOM % $deposit_index_accuracy ))
+    result=$( get_integer_between "$lower" "$upper" )
+    tries=$(( $tries + 1 ))
   done
-  indexes+=( $index )
-  indexes0+=( -$index )
-  indexes1+=( $index )
-done
+  echo "$result"
+}
 
 function get_fee {
   length=$( echo "$LP_FEES" | jq -r "length" )
@@ -99,6 +110,9 @@ do
   token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
   token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
 
+  # pair simulation options
+  price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
+
   echo "making deposit: initial ticks for $token0 and $token1"
   # apply the other half of the tokens to all tick indexes specified
   neutrond tx dex deposit \
@@ -121,7 +135,11 @@ do
       repeat_with_comma "$token1_single_tick_deposit_amount" "$tick_count_on_each_side"
     )" \
     `# list of tickIndexInToOut` \
-    "[$(join_with_comma "${indexes0[@]}"),$(join_with_comma "${indexes1[@]}")]" \
+    "[$(
+      get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index - $deposit_index_accuracy )) $price_index
+    ),$(
+      get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index + $deposit_index_accuracy )) $price_index
+    )]" \
     `# list of fees` \
     "$( get_joined_array $tick_count get_fee )" \
     `# disable_autoswap` \
@@ -201,11 +219,14 @@ do
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
 
+    # pair simulation options
+    price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
+
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
 
     # determine the new current price goal
     current_price=$( \
-      echo " $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
+      echo " $price_index + $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
       | bc -l \
       | awk '{printf("%d\n",$0+0.5)}' \
     )
@@ -309,10 +330,9 @@ do
 
     # - replace the end pieces of liquidity with values closer to the current price
 
-    # determine new indexes close to the current price (within accuracy, but not within min accuracy)
-    deposit_outside_swap_accuracy=$(( $deposit_index_accuracy - $swap_index_accuracy ))
-    new_index0=$(( $current_price - $swap_index_accuracy - $RANDOM % $deposit_outside_swap_accuracy ))
-    new_index1=$(( $current_price + $swap_index_accuracy + $RANDOM % $deposit_outside_swap_accuracy ))
+    # determine new indexes close to the current price (within deposit accuracy, but not within swap accuracy)
+    new_index0=$( get_integer_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy )) )
+    new_index1=$( get_integer_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy )) )
 
     # add these extra ticks to prevent swapping though all ticks errors
     # we deposit first to lessen the cases where we have entirely one-sided liquidity
