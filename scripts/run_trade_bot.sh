@@ -54,8 +54,9 @@ token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","unt
 tick_count=100 # should be divisible by 2
 tick_amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 LP_FEES="${LP_FEES:-[1, 5, 20, 100]}"
-deposit_index_accuracy=12000 # deposited ticks will fall within this accuracy range from price goal, must be >swap_index_accuracy
-swap_index_accuracy=1000 # swapped tick goals will fall within this accuracy range from price goal
+# indexes will fall within $accuracy distance of the current target price
+deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
+swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
 indexes=()
 indexes0=()
 indexes1=()
