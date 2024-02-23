@@ -43,6 +43,7 @@ token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","unt
 
 # create initial tick array outside of max price amplitude
 tick_count=100 # should be divisible by 2
+tick_amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 fee_options=( 1 5 20 100 )
 max_tick_index=12000
 indexes=()
@@ -51,7 +52,6 @@ indexes1=()
 amounts0=()
 amounts1=()
 fees=()
-amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 for (( i=0; i<$tick_count/2; i++ ))
 do
   index=$(( $RANDOM % $max_tick_index ))
@@ -64,8 +64,8 @@ do
   indexes0+=( -$index )
   indexes1+=( $index )
   # calculate reserve amounts to add that will equal the same amount of shares
-  amounts0+=( $amount )
-  amounts1+=( $( get_token_1_reserves_amount $amount $index ) )
+  amounts0+=( $tick_amount )
+  amounts1+=( $( get_token_1_reserves_amount $tick_amount $index ) )
   fee=${fee_options[$(( $RANDOM % 4 ))]}
   fees+=( $fee )
 done
@@ -273,9 +273,9 @@ do
       `# token-b` \
       $token1 \
       `# list of amount-0` \
-      "$amount,0" \
+      "$tick_amount,0" \
       `# list of amount-1` \
-      "0,$( get_token_1_reserves_amount $amount $new_index1 )" \
+      "0,$( get_token_1_reserves_amount $tick_amount $new_index1 )" \
       `# list of tick-index` \
       "[$new_index0,$new_index1]" \
       `# list of fees` \
