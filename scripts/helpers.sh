@@ -105,7 +105,7 @@ createMnemonic() {
     docker_env="${1:-"$( getDockerEnv )"}"
     # create mnenomic from container Env (without line breaks)
     neutrond keys mnemonic --keyring-backend test --unsafe-entropy <<EOF
-"$( echo "$docker_env" | jq '.Config' | xargs echo -n )"
+"$( echo "$docker_env" | jq '.Config' | tr -d '\r' | tr '\n' ' ' )"
 y
 EOF
 }
@@ -129,7 +129,7 @@ getFaucetWallet() {
     MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
     mnemonics_array=()
     i=1
-    while mnemonic=$(echo "$MNEMONICS" | cut -d\; -f$i | xargs echo -n); [ -n "$mnemonic" ]
+    while mnemonic=$(echo "$MNEMONICS" | cut -d\; -f$i ); [ -n "$mnemonic" ]
     do
         mnemonics_array+=( "$mnemonic" )
         i=$(( i+1 ))
