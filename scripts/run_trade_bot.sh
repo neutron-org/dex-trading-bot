@@ -13,16 +13,17 @@ person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
 address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args
-count=100; # should be divisible by 4
 function join_with_comma {
   local IFS=,
   echo "$*"
 }
 function repeat_with_comma {
+  value=$1
+  count=$2
   repeated=()
-  for (( i=0; i<$count/2; i++ ))
+  for (( i=0; i<$count; i++ ))
   do
-    repeated+=( $1 )
+    repeated+=( $value )
   done
   join_with_comma "${repeated[@]}"
 }
@@ -41,6 +42,7 @@ function get_token_1_reserves_amount {
 token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","untrn"]' )
 
 # create initial tick array outside of max price amplitude
+tick_count=100 # should be divisible by 4
 fee_options=( 1 5 20 100 )
 max_tick_index=12000
 indexes=()
@@ -49,8 +51,8 @@ indexes1=()
 amounts0=()
 amounts1=()
 fees=()
-amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will make $count/4 pools)
-for (( i=0; i<$count/4; i++ ))
+amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will make $tick_count/4 pools)
+for (( i=0; i<$tick_count/4; i++ ))
 do
   index=$(( $RANDOM % $max_tick_index ))
   # pick another index if this one was already used
@@ -83,21 +85,21 @@ do
     `# token-b` \
     $token1 \
     `# list of amount-0` \
-    "$(repeat_with_comma "$amount"),$(repeat_with_comma "0")" \
+    "$(join_with_comma "${amounts0[@]}"),$(repeat_with_comma "0" $(( $tick_count / 2 )))" \
     `# list of amount-1` \
-    "$(repeat_with_comma "0"),$(join_with_comma "${amounts1[@]}")" \
+    "$(repeat_with_comma "0" $(( $tick_count / 2 ))),$(join_with_comma "${amounts1[@]}")" \
     `# list of tickIndexInToOut` \
     "[$(join_with_comma "${indexes0[@]}"),$(join_with_comma "${indexes1[@]}")]" \
     `# list of fees` \
     "$(join_with_comma "${fees[@]}"),$(join_with_comma "${fees[@]}")" \
     `# disable_autoswap` \
-    "$(repeat_with_comma "false"),$(repeat_with_comma "false")" \
+    "$(repeat_with_comma "false" "$tick_count")" \
     `# options` \
     --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
     | jq -r '.txhash' \
     | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
     | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-    | xargs -I{} echo "{} deposited: initial $count seed liquidity ticks"
+    | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
 done
 
 # approximate price with sine curves of given amplitude and period
