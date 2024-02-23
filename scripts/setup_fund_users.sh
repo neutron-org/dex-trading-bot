@@ -4,6 +4,17 @@ set -e
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 
 # wait for chain to be ready
+token_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
+
+# check that token config is set, if it is not set, there is nothing to do
+token_config_length=$( echo ${TOKEN_CONFIG:-"[]"} | jq -r 'length' )
+if [ ! "${token_config_length:-0}" -gt "0" ]
+then
+    echo "incomplete TOKEN_CONFIG: at least one valid pair is required to trade"
+    exit 1
+fi;
+
+# wait for chain to be ready
 bash $SCRIPTPATH/check_chain_status.sh
 
 # define the amount of funds to use

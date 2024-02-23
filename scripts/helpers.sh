@@ -1,6 +1,61 @@
 #!/bin/bash
 set -e
 
+# format for TOKEN_CONFIG is:
+# TOKEN_CONFIG = {
+#   "amount0token0<>amount1token1": numeric_price_or_PAIR_CONFIG_object
+# }
+# the object keys are the usable tokens for each pair,
+# the object values are the price ratio of token1/token0 or a config object: (default values are listed)
+# PAIR_CONFIG = {
+#   "price":            1,              # price ratio is of token1/token0
+#   # future options:
+#   "ticks":            100,            # number of ticks for each bot to deposit
+#   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
+#   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
+#   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
+#   "amplitude1":       5000,           # ~50% of price:    current price will vary by ~50% of set price ratio
+#   "period1":          36000,          # ten hours:        current price will cycle min->max->min every ten hours
+#   "amplitude2":       1000,           # ~10% of price:    current price will vary by an additional ~10% of price ratio
+#   "period2":          600,            # ten minutes:      current price will cycle amplitude2 offset every ten minutes
+# }
+# which is transformed to format for token_config_array = [
+#   {
+#     "pair": [
+#       {
+#         "amount": "10000000000",
+#         "denom": "uibcatom"
+#       },
+#       {
+#         "amount": "10000000000",
+#         "denom": "uibcusdc"
+#       }
+#     ],
+#     "config": PAIR_CONFIG
+#   }
+# ]
+getTokenConfigArray() {
+    # convert object to array
+    # then convert numeric config (price) to object config
+    # then parse out the config key into a pair description of each variable
+    # default values are set by using the syntax (.x // default_x)
+    # docs: https://jqlang.github.io/jq/manual/#alternative-operator
+    echo "$TOKEN_CONFIG" | jq -r '
+        to_entries
+        | map(if .value | type == "number" then .value = { price: .value } else . end)
+        | map({
+            pair: (
+                .key
+                | split("<>")
+                | map(capture("(?<amount>[0-9]+)(?<denom>.+)"))
+            ),
+            config: {
+                price: (.price // 1),
+            },
+        })
+    '
+}
+
 getDockerEnv() {
     # get this Docker container env info
     curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
