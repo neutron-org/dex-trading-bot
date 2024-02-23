@@ -27,6 +27,15 @@ function repeat_with_comma {
   done
   join_with_comma "${repeated[@]}"
 }
+function get_joined_array {
+  count=$1
+  values=()
+  for (( i=0; i<$count; i++ ))
+  do
+    values+=( `$2` `$3` `$4` )
+  done
+  echo "$( join_with_comma "${values[@]}" )"
+}
 function get_token_1_reserves_amount {
   amount=$1
   index=$2;
@@ -52,7 +61,6 @@ indexes0=()
 indexes1=()
 amounts0=()
 amounts1=()
-fees=()
 for (( i=0; i<$tick_count/2; i++ ))
 do
   index=$(( $RANDOM % $deposit_index_accuracy ))
@@ -67,9 +75,13 @@ do
   # calculate reserve amounts to add that will equal the same amount of shares
   amounts0+=( $tick_amount )
   amounts1+=( $( get_token_1_reserves_amount $tick_amount $index ) )
-  fee=${fee_options[$(( $RANDOM % 4 ))]}
-  fees+=( $fee )
 done
+
+function get_fee {
+  random_index=$(( $RANDOM % 4 ))
+  random_value="${fee_options[$random_index]}"
+  echo "$random_value"
+}
 
 for token_pair in ${token_pairs[@]}
 do
@@ -91,7 +103,7 @@ do
     `# list of tickIndexInToOut` \
     "[$(join_with_comma "${indexes0[@]}"),$(join_with_comma "${indexes1[@]}")]" \
     `# list of fees` \
-    "$(join_with_comma "${fees[@]}"),$(join_with_comma "${fees[@]}")" \
+    "$( get_joined_array $tick_count get_fee )" \
     `# disable_autoswap` \
     "$(repeat_with_comma "false" "$tick_count")" \
     `# options` \
@@ -150,9 +162,6 @@ do
     token1=$( echo $token_pair | jq -r .[1] )
 
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
-
-    # create random fee tier to use in this iteration
-    fee=${fee_options[$(( $RANDOM % 4 ))]}
 
     # determine the new current price goal
     current_price=$( \
@@ -282,7 +291,7 @@ do
       `# list of tick-index` \
       "[$new_index0,$new_index1]" \
       `# list of fees` \
-      "$fee,$fee" \
+      "$( get_joined_array 2 get_fee )" \
       `# disable_autoswap` \
       false,false \
       `# options` \
