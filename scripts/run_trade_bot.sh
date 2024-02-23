@@ -8,7 +8,7 @@ SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 bash $SCRIPTPATH/check_chain_status.sh
 
 # define the person to trade with as the "trader" account
-tokens=100000000000
+tokens=1000000000
 person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
 address=$( neutrond keys show "$person" -a )
 

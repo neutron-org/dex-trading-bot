@@ -7,7 +7,7 @@ SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 bash $SCRIPTPATH/check_chain_status.sh
 
 # define the amount of funds to use
-tokens=100000000000
+tokens=1000000000
 
 docker_env="$( bash $SCRIPTPATH/helpers.sh getDockerEnv )"
 bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
