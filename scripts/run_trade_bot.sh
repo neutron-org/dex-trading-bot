@@ -8,8 +8,10 @@ SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 bash $SCRIPTPATH/check_chain_status.sh
 
 # define the person to trade with as the "trader" account
-person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
+person=$( bash $SCRIPTPATH/helpers.sh createUser )
 address=$( neutrond keys show "$person" -a )
+# wait for the user to be funded
+bash $SCRIPTPATH/helpers.sh getFundedUserBalances $person
 
 # add some helper functions to generate chain CLI args
 function join_with_comma {

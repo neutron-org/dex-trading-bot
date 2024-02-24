@@ -184,8 +184,8 @@ createUser() {
     # add the new account under hostname
     person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
     echo "creating user: $person" > /dev/stderr
-    # ignore duplicate user errors
-    echo "$mnemonic" | neutrond keys add $person --recover 2>/dev/null > /dev/stderr
+    # ignore duplicate user errors (note: will also ignore other unexpected errors)
+    echo "$mnemonic" | neutrond keys add $person --recover 2>/dev/null > /dev/stderr || true
     echo "$person";
 }
 
@@ -224,21 +224,20 @@ getFaucetWallet() {
     fi
 }
 
-getFundedUser() {
-    docker_env="${1:-"$( getDockerEnv )"}"
-    # add the new account under hostname
-    person="$( createUser "$docker_env" )"
+getFundedUserBalances() {
+    # add the new account if needed
+    person="${1:-"$( createUser "$docker_env" )"}"
     address="$( neutrond keys show $person -a )"
     # wait for the user to be funded
     try_count=20
     for (( i=1; i<=$try_count; i++ ))
     do
-        balances=$( neutrond query bank balances "$address" --output json )
+        balances=$( neutrond query bank balances "$address" --limit 100 --count-total --output json )
         token_count=$( echo "$balances" | jq -r '.balances | length' )
         if [ "$token_count" -gt 0 ]
         then
             echo "funding: user $person is funded!" > /dev/stderr
-            echo "$person"
+            echo "$balances"
             return 0
         else
             echo "funding: user $person has no tokens, waiting for funds (tried $i times)..." > /dev/stderr
