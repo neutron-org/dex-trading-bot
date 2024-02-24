@@ -83,78 +83,10 @@ function get_fee {
 # we will try not to spend more tokens than are agreed to in the config ENV var
 declare -A tokens_available=()
 
-# create initial tick deposits to trade with for each pair
+# get token pair simulation configurations
 bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
 token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
-for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
-do
-  token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair | sort_by(.denom)" )
-  token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
-  token0=$( echo "$token_pair" | jq -r '.[0].denom' )
-  token1=$( echo "$token_pair" | jq -r '.[1].denom' )
-  token0_total_amount=$( echo "$token_pair" | jq -r '.[0].amount' )
-  token1_total_amount=$( echo "$token_pair" | jq -r '.[1].amount' )
-
-  # calculate token amounts we will use in the initial deposit
-  # the amount deposited by all bots should not be more than can be swapped by any one bot
-  # eg. config 300A<>300B with 2 bots:
-  #     - deposit maximum 100A,100B from each bot = total deposit 200A,200B
-  #     - each bot has 200A,200B in reserve, enough to swap across the total deposited tokens
-  # in general terms this is:
-  #     - deposited = available / (bot_count+1)
-  #     -  reserves = available / (bot_count+1) * bot_count
-  token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) ))"
-  token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) ))"
-  # the amount of a single this is the deposit amount spread across the ticks on one side
-  token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
-  token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
-
-  # pair simulation options
-  price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
-
-  echo "making deposit: initial ticks for $token0 and $token1"
-  # apply the other half of the tokens to all tick indexes specified
-  neutrond tx dex deposit \
-    `# receiver` \
-    $address \
-    `# token-a` \
-    $token0 \
-    `# token-b` \
-    $token1 \
-    `# list of amount-0` \
-    "$(
-      repeat_with_comma "$token0_single_tick_deposit_amount" "$tick_count_on_each_side"
-    ),$(
-      repeat_with_comma "0" "$tick_count_on_each_side"
-    )" \
-    `# list of amount-1` \
-    "$(
-      repeat_with_comma "0" "$tick_count_on_each_side"
-    ),$(
-      repeat_with_comma "$token1_single_tick_deposit_amount" "$tick_count_on_each_side"
-    )" \
-    `# list of tickIndexInToOut` \
-    "[$(
-      get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index - $deposit_index_accuracy )) $price_index
-    ),$(
-      get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index + $deposit_index_accuracy )) $price_index
-    )]" \
-    `# list of fees` \
-    "$( get_joined_array $tick_count get_fee )" \
-    `# disable_autoswap` \
-    "$(repeat_with_comma "false" "$tick_count")" \
-    `# options` \
-    --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-    | jq -r '.txhash' \
-    | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
-    | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-    | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
-
-  # commit the remainder amount of tokens to our token store
-  tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
-  tokens_available["$pair_index-$token1"]="$(( $token1_total_amount - $token1_initial_deposit_amount ))"
-done
 
 # approximate price with sine curves of given amplitude and period
 # macro curve oscillates over hours
@@ -221,6 +153,52 @@ do
 
     # pair simulation options
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
+
+    # if initial ticks do not yet exist, add them so we have some liquidity to swap with
+    if [ -z "${tokens_available["$pair_index-$token0"]}" ]
+    then
+      echo "making deposit: initial ticks for $token0 and $token1"
+      # apply half of the available tokens to all tick indexes specified
+      neutrond tx dex deposit \
+        `# receiver` \
+        $address \
+        `# token-a` \
+        $token0 \
+        `# token-b` \
+        $token1 \
+        `# list of amount-0` \
+        "$(
+          repeat_with_comma "$token0_single_tick_deposit_amount" "$tick_count_on_each_side"
+        ),$(
+          repeat_with_comma "0" "$tick_count_on_each_side"
+        )" \
+        `# list of amount-1` \
+        "$(
+          repeat_with_comma "0" "$tick_count_on_each_side"
+        ),$(
+          repeat_with_comma "$token1_single_tick_deposit_amount" "$tick_count_on_each_side"
+        )" \
+        `# list of tickIndexInToOut` \
+        "[$(
+          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index - $deposit_index_accuracy )) $price_index
+        ),$(
+          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index + $deposit_index_accuracy )) $price_index
+        )]" \
+        `# list of fees` \
+        "$( get_joined_array $tick_count get_fee )" \
+        `# disable_autoswap` \
+        "$(repeat_with_comma "false" "$tick_count")" \
+        `# options` \
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
+        | jq -r '.txhash' \
+        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
+        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
+        | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
+
+      # commit the remainder amount of tokens to our token store
+      tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
+      tokens_available["$pair_index-$token1"]="$(( $token1_total_amount - $token1_initial_deposit_amount ))"
+    fi
 
     # determine the new current price goal
     current_price=$( \
