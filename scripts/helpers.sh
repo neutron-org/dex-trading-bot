@@ -24,8 +24,8 @@ getBotCount() {
 # the object values are the price ratio of token1/token0 or a config object: (default values are listed)
 # PAIR_CONFIG = {
 #   "price":            1,              # price ratio is of token1/token0
-#   # future options:
 #   "ticks":            100,            # number of ticks for each bot to deposit
+#   # future options:
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
 #   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
@@ -72,6 +72,7 @@ getTokenConfigArray() {
             ),
             config: {
                 price: (.price // 1),
+                ticks: (.ticks // 100),
             },
         })
     '

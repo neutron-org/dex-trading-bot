@@ -85,8 +85,6 @@ bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
 token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
 
-tick_count=100 # should be divisible by 2
-tick_count_on_each_side=$(( $tick_count / 2 ))
 # indexes will fall within $accuracy distance of the current target price
 deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
 swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
@@ -135,10 +133,16 @@ do
   do
     token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair | sort_by(.denom)" )
     token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
+
+    # pair simulation options
     token0=$( echo "$token_pair" | jq -r '.[0].denom' )
     token1=$( echo "$token_pair" | jq -r '.[1].denom' )
     token0_total_amount=$( echo "$token_pair" | jq -r '.[0].amount' )
     token1_total_amount=$( echo "$token_pair" | jq -r '.[1].amount' )
+    tick_count=$( echo "$token_pair_config" | jq -r '.ticks' )
+    tick_count_on_each_side=$(( $tick_count / 2 ))
+    # convert price to price index here
+    price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
@@ -153,9 +157,6 @@ do
     # the amount of a single this is the deposit amount spread across the ticks on one side
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
-
-    # pair simulation options
-    price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
 
     # determine the new current price goal
     current_price=$( \

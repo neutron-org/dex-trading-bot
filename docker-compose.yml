@@ -68,8 +68,14 @@ services:
       - TOKEN_CONFIG=
         {
           "10000000000000uibcatom<>10000000000000uibcusdc":10,
-          "100000000000uibcusdc<>100000000000untrn":{"price":0.5},
-          "1000000000uibcatom<>1000000000untrn":{"price":5}
+          "100000000000uibcusdc<>100000000000untrn":{
+            "price":0.5,
+            "ticks":50
+          },
+          "1000000000uibcatom<>1000000000untrn":{
+            "price":5,
+            "ticks":30
+          }
         }
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
