@@ -18,6 +18,7 @@ function join_with_comma {
   local IFS=,
   echo "$*"
 }
+
 function repeat_with_comma {
   value=$1
   count=$2
@@ -28,6 +29,7 @@ function repeat_with_comma {
   done
   join_with_comma "${repeated[@]}"
 }
+
 function get_joined_array {
   count=$1
   values=()
@@ -37,14 +39,6 @@ function get_joined_array {
   done
   echo "$( join_with_comma "${values[@]}" )"
 }
-
-# create initial tick array outside of max price amplitude
-tick_count=100 # should be divisible by 2 to spread evenly across two token sides
-tick_count_on_each_side=$(( $tick_count / 2 ))
-LP_FEES="${LP_FEES:-[1, 5, 20, 100]}"
-# indexes will fall within $accuracy distance of the current target price
-deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
-swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
 
 function get_integer_between {
   lower=${1:-0}
@@ -73,9 +67,12 @@ function get_unique_integers_between {
 }
 
 function get_fee {
-  length=$( echo "$LP_FEES" | jq -r "length" )
+  array_index=$1
+  array_string=$2
+  fees="${3:-[1, 5, 20, 100]}"
+  length=$( echo "$fees" | jq -r "length" )
   random_index=$(( $RANDOM % $length ))
-  random_value=$( echo "$LP_FEES" | jq -r ".[$random_index]" )
+  random_value=$( echo "$fees" | jq -r ".[$random_index]" )
   echo "$random_value"
 }
 
@@ -87,6 +84,12 @@ declare -A tokens_available=()
 bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
 token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
+
+tick_count=100 # should be divisible by 2
+tick_count_on_each_side=$(( $tick_count / 2 ))
+# indexes will fall within $accuracy distance of the current target price
+deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
+swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
 
 # approximate price with sine curves of given amplitude and period
 # macro curve oscillates over hours
@@ -194,7 +197,7 @@ do
           get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $current_price
         )]" \
         `# list of fees` \
-        "$( get_joined_array $tick_count get_fee )" \
+        "$( get_joined_array $tick_count get_fee "$LP_FEES" )" \
         `# disable_autoswap` \
         "$(repeat_with_comma "false" "$tick_count")" \
         `# options` \
@@ -330,7 +333,7 @@ do
       `# list of tick-index` \
       "[$new_index0,$new_index1]" \
       `# list of fees` \
-      "$( get_joined_array 2 get_fee )" \
+      "$( get_joined_array 2 get_fee "$LP_FEES" )" \
       `# disable_autoswap` \
       false,false \
       `# options` \
