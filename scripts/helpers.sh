@@ -1,6 +1,21 @@
 #!/bin/bash
 set -e
 
+getDockerEnv() {
+    # get this Docker container env info
+    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+}
+getDockerEnvs() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
+    docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
+}
+getBotCount() {
+    docker_envs="${1:-"$( getDockerEnvs )"}"
+    # count all matching bot docker envs as bots
+    echo "$docker_envs" | jq -r 'length'
+}
+
 # format for TOKEN_CONFIG is:
 # TOKEN_CONFIG = {
 #   "amount0token0<>amount1token1": numeric_price_or_PAIR_CONFIG_object
@@ -60,21 +75,6 @@ getTokenConfigArray() {
             },
         })
     '
-}
-
-getDockerEnv() {
-    # get this Docker container env info
-    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
-}
-getDockerEnvs() {
-    docker_env="${1:-"$( getDockerEnv )"}"
-    docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
-    docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
-}
-getBotCount() {
-    docker_envs="${1:-"$( getDockerEnvs )"}"
-    # count all matching bot docker envs as bots
-    echo "$docker_envs" | jq -r 'length'
 }
 
 getBotNumber() {
