@@ -154,6 +154,15 @@ do
     # pair simulation options
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
 
+    # determine the new current price goal
+    current_price=$( \
+      echo " $price_index + $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
+      | bc -l \
+      | awk '{printf("%d\n",$0+0.5)}' \
+    )
+
+    echo "pair: $token0<>$token1 current price index is $current_price"
+
     # if initial ticks do not yet exist, add them so we have some liquidity to swap with
     if [ -z "${tokens_available["$pair_index-$token0"]}" ]
     then
@@ -180,9 +189,9 @@ do
         )" \
         `# list of tickIndexInToOut` \
         "[$(
-          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index - $deposit_index_accuracy )) $price_index
+          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $current_price
         ),$(
-          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $price_index + $deposit_index_accuracy )) $price_index
+          get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $current_price
         )]" \
         `# list of fees` \
         "$( get_joined_array $tick_count get_fee )" \
@@ -199,15 +208,6 @@ do
       tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
       tokens_available["$pair_index-$token1"]="$(( $token1_total_amount - $token1_initial_deposit_amount ))"
     fi
-
-    # determine the new current price goal
-    current_price=$( \
-      echo " $price_index + $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
-      | bc -l \
-      | awk '{printf("%d\n",$0+0.5)}' \
-    )
-
-    echo "pair: $token0<>$token1 current price index is $current_price"
 
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
