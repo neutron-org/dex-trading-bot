@@ -193,7 +193,7 @@ do
     break
   fi
 
-  echo ".. will delay for: $delay"
+  echo "... loop will delay for: $delay"
   sleep $delay
 
   for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
@@ -222,8 +222,6 @@ do
     # pair simulation options
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' ) # convert price to price index here
 
-    echo "calculating: a swap on the pair '$token0' and '$token1'..."
-
     # determine the new current price goal
     current_price=$( \
       echo " $price_index + $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
@@ -231,11 +229,14 @@ do
       | awk '{printf("%d\n",$0+0.5)}' \
     )
 
+    echo "pair: $token0<>$token1 current price index is $current_price"
+
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
     goal_price=$(( $current_price + $deviation ))
 
     # - make a swap to get to current price
+    echo "calculating: a swap on the pair '$token0' and '$token1'..."
 
     # first, find the reserves of tokens that are outside the desired price
     # then swap those reserves
