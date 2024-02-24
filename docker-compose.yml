@@ -63,11 +63,13 @@ services:
       # faucet mnemonics should be set with specific MNEMONIC/S:
       # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
       - MNEMONICS=${MNEMONICS:-$MNEMONIC}
+      # use (from default local node test wallets) up to about 10,000,000 (display) tokens in each pool
+      # use range of token amounts to visualize multiple orders of magnitude in dev UI
       - TOKEN_CONFIG=
         {
           "10000000000000uibcatom<>10000000000000uibcusdc":10,
-          "10000000000000uibcusdc<>10000000000000untrn":{"price":0.5},
-          "10000000000000uibcatom<>10000000000000untrn":{"price":5}
+          "100000000000uibcusdc<>100000000000untrn":{"price":0.5},
+          "1000000000uibcatom<>1000000000untrn":{"price":5}
         }
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

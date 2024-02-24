@@ -8,7 +8,6 @@ SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 bash $SCRIPTPATH/check_chain_status.sh
 
 # define the person to trade with as the "trader" account
-tokens=1000000000
 person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
 address=$( neutrond keys show "$person" -a )
 
@@ -36,24 +35,10 @@ function get_joined_array {
   done
   echo "$( join_with_comma "${values[@]}" )"
 }
-function get_token_1_reserves_amount {
-  amount=$1
-  index=$2;
-  # note: this calculation is inaccurate, share amount is not a pure value
-  # so the reserves are not always proportional to the shares amount
-  # this fact should either be considered, or tick liquidity should be tightly controlled
-  # to avoid the cases where reserves are not proportional to the shares amount
-  echo " $amount / (1.0001 ^ $index) " \
-    | bc -l \
-    | awk '{printf("%.0f\n",$0+1)}' # round up only (in case we don't create enough reserves)
-}
-
-token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","untrn"]' )
 
 # create initial tick array outside of max price amplitude
 tick_count=100 # should be divisible by 2 to spread evenly across two token sides
 tick_count_on_each_side=$(( $tick_count / 2 ))
-tick_amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 LP_FEES="${LP_FEES:-[1, 5, 20, 100]}"
 # indexes will fall within $accuracy distance of the current target price
 deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
@@ -61,8 +46,6 @@ swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
 indexes=()
 indexes0=()
 indexes1=()
-amounts0=()
-amounts1=()
 for (( i=0; i<$tick_count_on_each_side; i++ ))
 do
   index=$(( $RANDOM % $deposit_index_accuracy ))
@@ -74,9 +57,6 @@ do
   indexes+=( $index )
   indexes0+=( -$index )
   indexes1+=( $index )
-  # calculate reserve amounts to add that will equal the same amount of shares
-  amounts0+=( $tick_amount )
-  amounts1+=( $( get_token_1_reserves_amount $tick_amount $index ) )
 done
 
 function get_fee {
@@ -86,12 +66,39 @@ function get_fee {
   echo "$random_value"
 }
 
-for token_pair in ${token_pairs[@]}
+# create a place to hold the tokens used state
+# we will try not to spend more tokens than are agreed to in the config ENV var
+declare -A tokens_available=()
+
+# create initial tick deposits to trade with for each pair
+bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
+token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
+token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
+for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
 do
-  token0=$( echo $token_pair | jq -r .[0] )
-  token1=$( echo $token_pair | jq -r .[1] )
+  token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair | sort_by(.denom)" )
+  token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
+  token0=$( echo "$token_pair" | jq -r '.[0].denom' )
+  token1=$( echo "$token_pair" | jq -r '.[1].denom' )
+  token0_total_amount=$( echo "$token_pair" | jq -r '.[0].amount' )
+  token1_total_amount=$( echo "$token_pair" | jq -r '.[1].amount' )
+
+  # calculate token amounts we will use in the initial deposit
+  # the amount deposited by all bots should not be more than can be swapped by any one bot
+  # eg. config 300A<>300B with 2 bots:
+  #     - deposit maximum 100A,100B from each bot = total deposit 200A,200B
+  #     - each bot has 200A,200B in reserve, enough to swap across the total deposited tokens
+  # in general terms this is:
+  #     - deposited = available / (bot_count+1)
+  #     -  reserves = available / (bot_count+1) * bot_count
+  token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) ))"
+  token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) ))"
+  # the amount of a single this is the deposit amount spread across the ticks on one side
+  token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
+  token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
+
   echo "making deposit: initial ticks for $token0 and $token1"
-  # apply an amount to all tick indexes specified
+  # apply the other half of the tokens to all tick indexes specified
   neutrond tx dex deposit \
     `# receiver` \
     $address \
@@ -100,9 +107,17 @@ do
     `# token-b` \
     $token1 \
     `# list of amount-0` \
-    "$(join_with_comma "${amounts0[@]}"),$(repeat_with_comma "0" $(( $tick_count_on_each_side )))" \
+    "$(
+      repeat_with_comma "$token0_single_tick_deposit_amount" "$tick_count_on_each_side"
+    ),$(
+      repeat_with_comma "0" "$tick_count_on_each_side"
+    )" \
     `# list of amount-1` \
-    "$(repeat_with_comma "0" $(( $tick_count_on_each_side ))),$(join_with_comma "${amounts1[@]}")" \
+    "$(
+      repeat_with_comma "0" "$tick_count_on_each_side"
+    ),$(
+      repeat_with_comma "$token1_single_tick_deposit_amount" "$tick_count_on_each_side"
+    )" \
     `# list of tickIndexInToOut` \
     "[$(join_with_comma "${indexes0[@]}"),$(join_with_comma "${indexes1[@]}")]" \
     `# list of fees` \
@@ -115,6 +130,10 @@ do
     | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
     | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
     | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
+
+  # commit the remainder amount of tokens to our token store
+  tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
+  tokens_available["$pair_index-$token1"]="$(( $token1_total_amount - $token1_initial_deposit_amount ))"
 done
 
 # approximate price with sine curves of given amplitude and period
@@ -157,18 +176,34 @@ do
   echo ".. will delay for: $delay"
   sleep $delay
 
-  pair_index=0
-  for token_pair in ${token_pairs[@]}
+  for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
   do
-    pair_index+=1
-    token0=$( echo $token_pair | jq -r .[0] )
-    token1=$( echo $token_pair | jq -r .[1] )
+    token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair | sort_by(.denom)" )
+    token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
+    token0=$( echo "$token_pair" | jq -r '.[0].denom' )
+    token1=$( echo "$token_pair" | jq -r '.[1].denom' )
+    token0_total_amount=$( echo "$token_pair" | jq -r '.[0].amount' )
+    token1_total_amount=$( echo "$token_pair" | jq -r '.[1].amount' )
+
+    # calculate token amounts we will use in the initial deposit
+    # the amount deposited by all bots should not be more than can be swapped by any one bot
+    # eg. config 300A<>300B with 2 bots:
+    #     - deposit maximum 100A,100B from each bot = total deposit 200A,200B
+    #     - each bot has 200A,200B in reserve, enough to swap across the total deposited tokens
+    # in general terms this is:
+    #     - deposited = available / (bot_count+1)
+    #     -  reserves = available / (bot_count+1) * bot_count
+    token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) ))"
+    token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) ))"
+    # the amount of a single this is the deposit amount spread across the ticks on one side
+    token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
+    token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
 
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
 
     # determine the new current price goal
     current_price=$( \
-      echo " $amplitude1*s($EPOCHSECONDS / ($period1*$pair_index) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
+      echo " $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
       | bc -l \
       | awk '{printf("%d\n",$0+0.5)}' \
     )
@@ -288,9 +323,9 @@ do
       `# token-b` \
       $token1 \
       `# list of amount-0` \
-      "$tick_amount,0" \
+      "$token0_single_tick_deposit_amount,0" \
       `# list of amount-1` \
-      "0,$( get_token_1_reserves_amount $tick_amount $new_index1 )" \
+      "0,$token1_single_tick_deposit_amount" \
       `# list of tick-index` \
       "[$new_index0,$new_index1]" \
       `# list of fees` \

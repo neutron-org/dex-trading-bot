@@ -5,7 +5,7 @@ set -e
 # TOKEN_CONFIG = {
 #   "amount0token0<>amount1token1": numeric_price_or_PAIR_CONFIG_object
 # }
-# the object keys are the usable tokens for each pair,
+# the object keys are the usable tokens for each pair (to be shared across all bots),
 # the object values are the price ratio of token1/token0 or a config object: (default values are listed)
 # PAIR_CONFIG = {
 #   "price":            1,              # price ratio is of token1/token0
@@ -23,11 +23,11 @@ set -e
 #   {
 #     "pair": [
 #       {
-#         "amount": "10000000000",
+#         "amount": "10000000000", # <-- this is the amount for one bot
 #         "denom": "uibcatom"
 #       },
 #       {
-#         "amount": "10000000000",
+#         "amount": "10000000000", # <-- this is the amount for one bot
 #         "denom": "uibcusdc"
 #       }
 #     ],
@@ -40,6 +40,9 @@ getTokenConfigArray() {
     # then parse out the config key into a pair description of each variable
     # default values are set by using the syntax (.x // default_x)
     # docs: https://jqlang.github.io/jq/manual/#alternative-operator
+
+    # split the total tokens budget across each bot so each env doesn't need to worry about the number of bots
+    bot_count=$( getBotCount )
     echo "$TOKEN_CONFIG" | jq -r '
         to_entries
         | map(if .value | type == "number" then .value = { price: .value } else . end)
@@ -47,7 +50,10 @@ getTokenConfigArray() {
             pair: (
                 .key
                 | split("<>")
-                | map(capture("(?<amount>[0-9]+)(?<denom>.+)"))
+                | map(
+                    capture("(?<amount>[0-9]+)(?<denom>.+)")
+                    | .amount = ((.amount | tonumber) / '$bot_count' | floor)
+                )
             ),
             config: {
                 price: (.price // 1),
@@ -64,6 +70,11 @@ getDockerEnvs() {
     docker_env="${1:-"$( getDockerEnv )"}"
     docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
     docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
+}
+getBotCount() {
+    docker_envs="${1:-"$( getDockerEnvs )"}"
+    # count all matching bot docker envs as bots
+    echo "$docker_envs" | jq -r 'length'
 }
 
 getBotNumber() {

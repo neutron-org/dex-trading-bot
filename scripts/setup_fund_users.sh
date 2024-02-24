@@ -17,9 +17,6 @@ fi;
 # wait for chain to be ready
 bash $SCRIPTPATH/check_chain_status.sh
 
-# define the amount of funds to use
-tokens=1000000000
-
 docker_env="$( bash $SCRIPTPATH/helpers.sh getDockerEnv )"
 bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
 
@@ -42,8 +39,37 @@ then
         user_addresses_array+=( "$( neutrond keys show $user -a )" )
     done
 
+    # find the amount of tokens to given all accounts
+    declare -A denom_amounts=()
+    token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
+    token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
+    for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
+    do
+        token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index]" )
+        token_pair=$( echo "$token_pair_config" | jq -r '.pair' )
+        denom0=$( echo "$token_pair" | jq -r '.[0].denom' )
+        denom1=$( echo "$token_pair" | jq -r '.[1].denom' )
+        amount0=$( echo "$token_pair" | jq -r '.[0].amount' )
+        amount1=$( echo "$token_pair" | jq -r '.[1].amount' )
+        # accumulate amounts under each denom key
+        denom_amounts["$denom0"]=$(( ${denom_amounts["$denom0"]:-0} + $amount0 ))
+        denom_amounts["$denom1"]=$(( ${denom_amounts["$denom1"]:-0} + $amount1 ))
+    done
+
+    # create tokens string from accumulated amounts distributed to each bot
+    tokens=""
+    for denom in ${!denom_amounts[@]}
+    do
+        # add comma between denom amounts
+        if [ ! -z "$tokens" ]
+        then
+            tokens+=","
+        fi
+        # add denom amount to string
+        tokens+="${denom_amounts[$denom]}${denom}"
+    done
+
     # multi-send to multiple users ($tokens amount is sent to each user)
-    tokens="${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc"
     send_or_multi_send="send"
     if [ "${#user_addresses_array[@]}" -gt 1 ]
     then
