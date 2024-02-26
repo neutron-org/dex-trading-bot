@@ -15,6 +15,16 @@ getBotCount() {
     # count all matching bot docker envs as bots
     echo "$docker_envs" | jq -r 'length'
 }
+getBotNumber() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    docker_service_number=$(
+        echo "$docker_env" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
+    )
+    if [ "$docker_service_number" -gt "0" ]
+    then
+        echo "$docker_service_number";
+    fi
+}
 
 # format for TOKEN_CONFIG is:
 # TOKEN_CONFIG = {
@@ -29,7 +39,6 @@ getBotCount() {
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
 #   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
-#   # future options:
 #   "amplitude1":       5000,           # ~50% of price:    current price will vary by ~50% of set price ratio
 #   "period1":          36000,          # ten hours:        current price will cycle min->max->min every ten hours
 #   "amplitude2":       1000,           # ~10% of price:    current price will vary by an additional ~10% of price ratio
@@ -60,12 +69,13 @@ getTokenConfigArray() {
 
     # split the total tokens budget across each bot so each env doesn't need to worry about the number of bots
     bot_count=$( getBotCount )
+    # by default shift the period of each token pair slightly so they are not exactly in sync
     echo "$TOKEN_CONFIG" | jq -r '
         .defaults as $defaults
         | del(.defaults)
         | to_entries
         | map(if .value | type == "number" then .value = { price: .value } else . end)
-        | map({
+        | map(.value * {
             pair: (
                 .key
                 | split("<>")
@@ -74,27 +84,26 @@ getTokenConfigArray() {
                     | .amount = ((.amount | tonumber) / '$bot_count' | floor)
                 )
             ),
+        })
+        # use array to get index keys (.key) for default amplitude periods
+        | to_entries
+        | map({
+            pair: .value.pair,
             config: {
                 price: (.value.price // $defaults.price // 1),
                 ticks: (.value.ticks // $defaults.ticks // 100),
                 fees: (.value.fees // $defaults.fees // [1, 5, 20, 100]),
                 swap_accuracy: (.value.swap_accuracy // $defaults.swap_accuracy // 100),
                 deposit_accuracy: (.value.deposit_accuracy // $defaults.deposit_accuracy // 1000),
+                amplitude1: (.value.amplitude1 // $defaults.amplitude1 // 5000),
+                period1: (.value.period1 // $defaults.period1 // (36000 + .key)),
+                amplitude2: (.value.amplitude2 // $defaults.amplitude2 // 1000),
+                period2: (.value.period2 // $defaults.period2 // (600 + .key)),
             },
         })
     '
 }
 
-getBotNumber() {
-    docker_env="${1:-"$( getDockerEnv )"}"
-    docker_service_number=$(
-        echo "$docker_env" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
-    )
-    if [ "$docker_service_number" -gt "0" ]
-    then
-        echo "$docker_service_number";
-    fi
-}
 getDockerEnvOfBotNumber() {
     # ask for a specific bot number
     bot_number=$1

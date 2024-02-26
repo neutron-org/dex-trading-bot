@@ -85,13 +85,6 @@ bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
 token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
 
-# approximate price with sine curves of given amplitude and period
-# macro curve oscillates over hours
-amplitude1=10000 # in ticks
-period1=3600 # in seconds
-# micro curve oscillates over minutes
-amplitude2=-2000 # in seconds
-period2=300 # in seconds
 two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 
 # delay bots as part of startup ramping process
@@ -142,6 +135,10 @@ do
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
+    amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
+    amplitude2=$( echo "$token_pair_config" | jq -r '.amplitude2' )
+    period1=$( echo "$token_pair_config" | jq -r '.period1' )
+    period2=$( echo "$token_pair_config" | jq -r '.period2' )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
@@ -158,8 +155,10 @@ do
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
 
     # determine the new current price goal
+    # approximate price with sine curves of given amplitude and period
+    # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
     current_price=$( \
-      echo " $price_index + $amplitude1*s($EPOCHSECONDS / ($period1*($pair_index+1)) * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
+      echo " $price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
       | bc -l \
       | awk '{printf("%d\n",$0+0.5)}' \
     )
