@@ -77,7 +77,7 @@ services:
             "ticks":30
           },
           "defaults":{
-            "ticks":80
+            "fees":[0,1,2,3,4,5,10,20,50,100,150,200]
           }
         }
     volumes:

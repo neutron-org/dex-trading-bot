@@ -69,7 +69,7 @@ function get_unique_integers_between {
 function get_fee {
   array_index=$1
   array_string=$2
-  fees="${3:-[1, 5, 20, 100]}"
+  fees=$3
   length=$( echo "$fees" | jq -r "length" )
   random_index=$(( $RANDOM % $length ))
   random_value=$( echo "$fees" | jq -r ".[$random_index]" )
@@ -143,6 +143,7 @@ do
     tick_count_on_each_side=$(( $tick_count / 2 ))
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
+    fees=$( echo "$token_pair_config" | jq -r '.fees' )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
@@ -198,7 +199,7 @@ do
           get_joined_array $tick_count_on_each_side get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $current_price
         )]" \
         `# list of fees` \
-        "$( get_joined_array $tick_count get_fee "$LP_FEES" )" \
+        "$( get_joined_array $tick_count get_fee "$fees" )" \
         `# disable_autoswap` \
         "$(repeat_with_comma "false" "$tick_count")" \
         `# options` \
@@ -334,7 +335,7 @@ do
       `# list of tick-index` \
       "[$new_index0,$new_index1]" \
       `# list of fees` \
-      "$( get_joined_array 2 get_fee "$LP_FEES" )" \
+      "$( get_joined_array 2 get_fee "$fees" )" \
       `# disable_autoswap` \
       false,false \
       `# options` \
