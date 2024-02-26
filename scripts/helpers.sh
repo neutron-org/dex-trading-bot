@@ -27,9 +27,9 @@ getBotCount() {
 #   "price":            1,              # price ratio is of token1/token0
 #   "ticks":            100,            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
-#   # future options:
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
 #   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
+#   # future options:
 #   "amplitude1":       5000,           # ~50% of price:    current price will vary by ~50% of set price ratio
 #   "period1":          36000,          # ten hours:        current price will cycle min->max->min every ten hours
 #   "amplitude2":       1000,           # ~10% of price:    current price will vary by an additional ~10% of price ratio
@@ -78,6 +78,8 @@ getTokenConfigArray() {
                 price: (.value.price // $defaults.price // 1),
                 ticks: (.value.ticks // $defaults.ticks // 100),
                 fees: (.value.fees // $defaults.fees // [1, 5, 20, 100]),
+                swap_accuracy: (.value.swap_accuracy // $defaults.swap_accuracy // 100),
+                deposit_accuracy: (.value.deposit_accuracy // $defaults.deposit_accuracy // 1000),
             },
         })
     '

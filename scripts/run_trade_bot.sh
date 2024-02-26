@@ -85,10 +85,6 @@ bot_count=$( bash $SCRIPTPATH/helpers.sh getBotCount )
 token_pair_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
 
-# indexes will fall within $accuracy distance of the current target price
-deposit_index_accuracy=1000 # approx 1.0001 ^ 1000 = +/- 10%
-swap_index_accuracy=100     # approx 1.0001 ^  100 = +/-  1%
-
 # approximate price with sine curves of given amplitude and period
 # macro curve oscillates over hours
 amplitude1=10000 # in ticks
@@ -144,6 +140,8 @@ do
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
+    deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
+    swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
