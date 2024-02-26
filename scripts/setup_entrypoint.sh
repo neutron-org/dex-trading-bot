@@ -22,7 +22,8 @@ else
     echo "setup failed (error code: $setup_error_code)"
 fi
 
-# Cleanup: any cleanup steps can go here
+# Cleanup
+bash scripts/setup_refund_users.sh
 
 # return either error code
 exit $(( ${command_error_code:-0} + $setup_error_code ))
