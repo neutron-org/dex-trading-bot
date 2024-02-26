@@ -51,7 +51,8 @@ function get_token_1_reserves_amount {
 token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","untrn"]' )
 
 # create initial tick array outside of max price amplitude
-tick_count=100 # should be divisible by 2
+tick_count=100 # should be divisible by 2 to spread evenly across two token sides
+tick_count_on_each_side=$(( $tick_count / 2 ))
 tick_amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will use total $amount * $tick_count/2 of each token)
 LP_FEES="${LP_FEES:-[1, 5, 20, 100]}"
 # indexes will fall within $accuracy distance of the current target price
@@ -62,7 +63,7 @@ indexes0=()
 indexes1=()
 amounts0=()
 amounts1=()
-for (( i=0; i<$tick_count/2; i++ ))
+for (( i=0; i<$tick_count_on_each_side; i++ ))
 do
   index=$(( $RANDOM % $deposit_index_accuracy ))
   # pick another index if this one was already used
@@ -99,9 +100,9 @@ do
     `# token-b` \
     $token1 \
     `# list of amount-0` \
-    "$(join_with_comma "${amounts0[@]}"),$(repeat_with_comma "0" $(( $tick_count / 2 )))" \
+    "$(join_with_comma "${amounts0[@]}"),$(repeat_with_comma "0" $(( $tick_count_on_each_side )))" \
     `# list of amount-1` \
-    "$(repeat_with_comma "0" $(( $tick_count / 2 ))),$(join_with_comma "${amounts1[@]}")" \
+    "$(repeat_with_comma "0" $(( $tick_count_on_each_side ))),$(join_with_comma "${amounts1[@]}")" \
     `# list of tickIndexInToOut` \
     "[$(join_with_comma "${indexes0[@]}"),$(join_with_comma "${indexes1[@]}")]" \
     `# list of fees` \
