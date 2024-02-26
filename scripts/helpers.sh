@@ -18,7 +18,8 @@ getBotCount() {
 
 # format for TOKEN_CONFIG is:
 # TOKEN_CONFIG = {
-#   "amount0token0<>amount1token1": numeric_price_or_PAIR_CONFIG_object
+#   "amount0token0<>amount1token1": numeric_price_or_PAIR_CONFIG_object,
+#   "defaults": PAIR_CONFIG
 # }
 # the object keys are the usable tokens for each pair (to be shared across all bots),
 # the object values are the price ratio of token1/token0 or a config object: (default values are listed)
@@ -50,6 +51,7 @@ getBotCount() {
 #   }
 # ]
 getTokenConfigArray() {
+    # remove "defaults" to save as default config
     # convert object to array
     # then convert numeric config (price) to object config
     # then parse out the config key into a pair description of each variable
@@ -59,7 +61,9 @@ getTokenConfigArray() {
     # split the total tokens budget across each bot so each env doesn't need to worry about the number of bots
     bot_count=$( getBotCount )
     echo "$TOKEN_CONFIG" | jq -r '
-        to_entries
+        .defaults as $defaults
+        | del(.defaults)
+        | to_entries
         | map(if .value | type == "number" then .value = { price: .value } else . end)
         | map({
             pair: (
@@ -71,8 +75,8 @@ getTokenConfigArray() {
                 )
             ),
             config: {
-                price: (.price // 1),
-                ticks: (.ticks // 100),
+                price: (.value.price // $defaults.price // 1),
+                ticks: (.value.ticks // $defaults.ticks // 100),
             },
         })
     '

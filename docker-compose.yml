@@ -75,6 +75,9 @@ services:
           "1000000000uibcatom<>1000000000untrn":{
             "price":5,
             "ticks":30
+          },
+          "defaults":{
+            "ticks":80
           }
         }
     volumes:
