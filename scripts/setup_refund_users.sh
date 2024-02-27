@@ -101,14 +101,26 @@ do
     balances_paginated+=( $balances )
     page=$(( $page + 1 ))
 done
+# echo "balances_paginated: ${balances_paginated[@]}"
 balances=$( echo "${balances_paginated[@]}" | jq -s -r 'map(.balances) | flatten' )
+# echo "balances: ${balances}"
 balances_count="$( echo "$balances" | jq -r 'length' )"
+# echo "balances_count: ${balances_count}"
 
 # refund funds if user has balances left
 if [ "${balances_count:-"0"}" -gt "0" ]
 then
-    # select non-pool tokens to return
-    amounts=$( echo "$balances" | jq -r 'map(select(.denom | match("^(?!neutron/pool)")) | [.amount, .denom] | add) | join(",")' )
+    # select non-pool tokens to return but subtract a gas fee to use from untrn
+    gas="200000"
+    amounts=$( echo "$balances" | jq -r '
+        map(
+            select(.denom | match("^(?!neutron/pool)"))
+            | if .denom == "untrn" then ({ amount: ((.amount | tonumber) - '"$gas"' | tostring), denom: .denom }) else . end
+            | [.amount, .denom]
+            | add
+        )
+        | join(",")
+    ' )
 
     if [ ! -z "$amounts" ]
     then
@@ -120,7 +132,7 @@ then
                 $amounts \
                 --broadcast-mode sync \
                 --output json \
-                --gas auto \
+                --gas $gas \
                 --gas-adjustment $GAS_ADJUSTMENT \
                 --gas-prices $GAS_PRICES \
                 --yes
@@ -130,8 +142,12 @@ then
             tx_hash=$( echo $response | jq -r '.txhash' )
             # get tx result for msg
             tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-
-            echo "refunded users: $funder with tokens $amounts from $user"
+            if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
+            then
+                echo "refunded users: $funder with tokens $amounts from $user"
+            else
+                echo "refunding user error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
+            fi
         else
             echo "refunding user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
         fi
@@ -139,6 +155,8 @@ then
         echo "refunding user warning: $user has no tokens to refund to $funder"
     fi
 fi
+
+echo "final user account state: $( neutrond query bank balances "$address" --output json )"
 
 # wait for other bots to refund the funder
 bash $SCRIPTPATH/helpers.sh waitForAllBotsToSynchronizeToStage faucet_refunded 3
