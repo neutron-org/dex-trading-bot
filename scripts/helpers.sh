@@ -201,8 +201,13 @@ createUser() {
     # add the new account under hostname
     person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
     echo "creating user: $person" > /dev/stderr
-    # ignore duplicate user errors (note: will also ignore other unexpected errors)
-    echo "$mnemonic" | neutrond keys add $person --recover 2>/dev/null > /dev/stderr || true
+    # add only if user is not yet saved
+    has_key=$( neutrond keys list --output json | jq -r 'map(select(.name == "'$person'")) | length' || echo "0" )
+    if [ "$has_key" -eq "0" ]
+    then
+        # script will exit if it errors here
+        echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
+    fi
     echo "$person";
 }
 
@@ -233,8 +238,13 @@ getFaucetWallet() {
     then
         # add the faucet account
         person="faucet"
-        # ignore duplicate user errors (note: will also ignore other unexpected errors)
-        echo "$mnemonic" | neutrond keys add $person --recover > /dev/null > /dev/stderr || true
+        # add only if user is not yet saved
+        has_key=$( neutrond keys list --output json | jq -r 'map(select(.name == "'$person'")) | length' || echo "0" )
+        if [ "$has_key" -eq "0" ]
+        then
+            # script will exit if it errors here
+            echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
+        fi
         echo "$person";
     else
         echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
