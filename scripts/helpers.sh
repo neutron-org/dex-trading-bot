@@ -75,14 +75,18 @@ getBotEndTime() {
         echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
     fi
 }
-waitForOtherBotsToEnd() {
+waitForAllBotsToSynchronizeToStage() {
+    stage_name="$1"
+    wait_time="${2:-3}"
     docker_envs="$( getDockerEnvs )"
     docker_envs_count="$( echo "$docker_envs" | jq -r 'length' )"
+    filename="${stage_name}_time"
+    echo "bot sync: wait for stage $stage_name ..." > /dev/stderr
     if [ "$docker_envs_count" -gt 1 ]
     then
-        # write end time to file for other bots to query
-        echo "$EPOCHSECONDS" > end_time
-        # query all containers for their end time, one by one
+        # write time to file for other bots to query
+        echo "$EPOCHSECONDS" > $filename
+        # query all containers for their time, one by one
         for (( i=0; i<$docker_envs_count; i++ ))
         do
             docker_env="$( echo "$docker_envs" | jq ".[$i]" )"
@@ -90,13 +94,15 @@ waitForOtherBotsToEnd() {
             nth_bot_end_time=""
             while [ -z "$nth_bot_end_time" ]
             do
-                nth_bot_end_time=$( docker exec $nth_bot_container cat end_time 2>/dev/null || true )
+                nth_bot_end_time=$( docker exec $nth_bot_container cat $filename 2>/dev/null || true )
                 if [ -z "$nth_bot_end_time" ]
                 then
-                    sleep 3
+                    sleep "$wait_time"
+                    echo "bot sync: wait for stage $stage_name, still waiting ..." > /dev/stderr
                 fi
             done
         done
+        echo "bot sync: synced to stage $stage_name" > /dev/stderr
     fi
 }
 

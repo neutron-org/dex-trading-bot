@@ -361,7 +361,7 @@ done
 
 echo "TRADE_DURATION_SECONDS has been reached";
 
-# wait for all bots to finish before exiting
-bash $SCRIPTPATH/helpers.sh waitForOtherBotsToEnd
+# wait for all bots to finish this stage before exiting
+bash $SCRIPTPATH/helpers.sh waitForAllBotsToSynchronizeToStage trading_finished 3
 
 echo "exiting trade script"
