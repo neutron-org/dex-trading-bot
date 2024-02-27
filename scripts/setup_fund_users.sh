@@ -55,8 +55,12 @@ then
         tx_hash=$( echo $response | jq -r '.txhash' )
         # get tx result for msg
         tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-
-        echo "funded users: ${user_addresses_array[@]} with tokens $tokens"
+        if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
+        then
+            echo "funded users: ${user_addresses_array[@]} with tokens $tokens"
+        else
+            echo "funding user error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
+        fi
     else
         echo "funding user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
     fi
