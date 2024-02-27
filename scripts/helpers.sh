@@ -233,7 +233,8 @@ getFaucetWallet() {
     then
         # add the faucet account
         person="faucet"
-        echo "$mnemonic" | neutrond keys add $person --recover > /dev/null
+        # ignore duplicate user errors (note: will also ignore other unexpected errors)
+        echo "$mnemonic" | neutrond keys add $person --recover > /dev/null > /dev/stderr || true
         echo "$person";
     else
         echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
