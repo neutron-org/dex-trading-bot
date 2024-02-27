@@ -143,13 +143,15 @@ do
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
     # eg. config 300A<>300B with 2 bots:
-    #     - deposit maximum 100A,100B from each bot = total deposit 200A,200B
-    #     - each bot has 200A,200B in reserve, enough to swap across the total deposited tokens
+    #     - deposit maximum 50A,50B from each bot = total deposit 100A,100B
+    #     - imagine that all of B is swapped out -->  total deposit 200A,0B
+    #     - each bot has 200A,200B in reserve, enough to always swap across the total A tokens
+    #     - swaps may still fail due to different token equivalence at price points not close to index 0
     # in general terms this is:
-    #     - deposited = available / (bot_count+1)
-    #     -  reserves = available / (bot_count+1) * bot_count
-    token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) ))"
-    token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) ))"
+    #     - deposited = available / (bot_count+1) / 2
+    #     -  reserves = available - deposited
+    token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
+    token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
     # the amount of a single this is the deposit amount spread across the ticks on one side
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
