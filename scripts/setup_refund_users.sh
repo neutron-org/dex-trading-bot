@@ -14,14 +14,25 @@ funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet "$docker_env" )
 # get funded user
 user=$( bash $SCRIPTPATH/helpers.sh createUser "$docker_env"  )
 address="$( neutrond keys show $user -a )"
-balances=$( neutrond query bank balances "$address" --limit 1000 --count-total --output json )
-balances_count="$( echo "$balances" | jq -r '.balances | length' )"
+# get all balances
+balances_paginated=()
+page=1
+# note: passing the given "next_key" string to the CLI doesn't seem to work
+#       (acts as if next_key is an empty string), use page numbers instead
+while [ -z "$balances" ] || [ ! -z "$( echo "$balances" | jq -r '.pagination.next_key // ""' )" ]
+do
+    balances=$( neutrond query bank balances "$address" --page "$page" --output json )
+    balances_paginated+=( $balances )
+    page=$(( $page + 1 ))
+done
+balances=$( echo "${balances_paginated[@]}" | jq -s -r 'map(.balances) | flatten' )
+balances_count="$( echo "$balances" | jq -r 'length' )"
 
 # refund funds if user has balances left
 if [ "${balances_count:-"0"}" -gt "0" ]
 then
     # select non-pool tokens to return
-    amounts=$( echo "$balances" | jq -r '.balances | map(select(.denom | match("^(?!neutron/pool)")) | [.amount, .denom] | add) | join(",")' )
+    amounts=$( echo "$balances" | jq -r 'map(select(.denom | match("^(?!neutron/pool)")) | [.amount, .denom] | add) | join(",")' )
 
     if [ ! -z "$amounts" ]
     then
