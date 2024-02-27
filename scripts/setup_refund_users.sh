@@ -52,3 +52,8 @@ then
         echo "refunding user warning: $user has no tokens to refund to $funder"
     fi
 fi
+
+# wait for other bots to refund the funder
+bash $SCRIPTPATH/helpers.sh waitForAllBotsToSynchronizeToStage faucet_refunded 3
+# wait for other bots to print their sync messages
+sleep 3
