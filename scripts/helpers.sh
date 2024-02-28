@@ -200,6 +200,26 @@ y
 EOF
 }
 
+createUserKey() {
+    person="$1"
+    mnemonic="$2"
+    # add only if user is not yet saved
+    # note: when the keys list is empty it will cause a jq error: `parse error: Invalid numeric literal at line 1, column 3`
+    #       this is because the empty list returns
+    keys_list=$( neutrond keys list --output json )
+    if [ "$keys_list" = "No records were found in keyring" ]
+    then
+        has_key="0"
+    else
+        has_key=$( echo "$keys_list" | jq -r 'map(select(.name == "'$person'")) | length' || echo "0" )
+    fi
+    if [ "$has_key" -eq "0" ]
+    then
+        # script will exit if it errors here
+        echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
+    fi
+}
+
 createUser() {
     docker_env="${1:-"$( getDockerEnv )"}"
     # create mnenomic from container Env (without line breaks)
@@ -209,12 +229,7 @@ createUser() {
     person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
     echo "creating user: $person" > /dev/stderr
     # add only if user is not yet saved
-    has_key=$( neutrond keys list --output json | jq -r 'map(select(.name == "'$person'")) | length' || echo "0" )
-    if [ "$has_key" -eq "0" ]
-    then
-        # script will exit if it errors here
-        echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
-    fi
+    createUserKey "$person" "$mnemonic"
     echo "$person";
 }
 
@@ -244,14 +259,7 @@ getFaucetWallet() {
     if [ ! -z "$mnemonic" ]
     then
         # add the faucet account
-        person="faucet"
-        # add only if user is not yet saved
-        has_key=$( neutrond keys list --output json | jq -r 'map(select(.name == "'$person'")) | length' || echo "0" )
-        if [ "$has_key" -eq "0" ]
-        then
-            # script will exit if it errors here
-            echo "$mnemonic" | neutrond keys add $person --recover > /dev/stderr
-        fi
+        createUserKey "faucet" "$mnemonic"
         echo "$person";
     else
         echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
