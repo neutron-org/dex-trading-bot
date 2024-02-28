@@ -134,6 +134,7 @@ do
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
+    swap_factor=$( echo "$token_pair_config" | jq -r '.swap_factor' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
     amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
@@ -234,8 +235,8 @@ do
     if (( $(bc <<< "$reserves0 > 0") ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
-      balance="$( neutrond query bank balances $address --denom $token1 --output json | jq -r '.amount' )"
-      if [ "$balance" -gt "0" ]
+      trade_amount="$( neutrond query bank balances $address --denom $token1 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      if [ "$trade_amount" -gt "0" ]
       then
         response="$(
           neutrond tx dex place-limit-order \
@@ -245,10 +246,10 @@ do
           $token1 \
           `# token out` \
           $token0 \
-          `# tickIndexInToOut (note: simply using the max tick limit so the limit is not reached)` \
+          `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
           "[$(( $goal_price * -1 ))]" \
-          `# amount in: allow up to the denom balance to be traded, so we can reach the tick limit` \
-          "$balance" \
+          `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
+          "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
           `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
           IMMEDIATE_OR_CANCEL \
@@ -280,8 +281,8 @@ do
       if (( $(bc <<< "$reserves1 > 0") ))
       then
         echo "making place-limit-order: '$token0' -> '$token1'"
-        balance="$( neutrond query bank balances $address --denom $token0 --output json | jq -r '.amount' )"
-        if [ "$balance" -gt "0" ]
+        trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+        if [ "$trade_amount" -gt "0" ]
         then
           response="$(
             neutrond tx dex place-limit-order \
@@ -291,10 +292,10 @@ do
             $token0 \
             `# token out` \
             $token1 \
-            `# tickIndexInToOut (note: simply using the max tick limit so the limit is not reached)` \
+            `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
             "[$(( $goal_price * 1 ))]" \
-            `# amount in: allow up to the denom balance to be traded, so we can reach the tick limit` \
-            "$balance" \
+            `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
+            "$trade_amount" \
               `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
             `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
             IMMEDIATE_OR_CANCEL \
