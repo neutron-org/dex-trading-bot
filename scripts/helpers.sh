@@ -37,6 +37,7 @@ getBotNumber() {
 #   "price":            1,              # price ratio is of token1/token0
 #   "ticks":            100,            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
+#   "gas":              "0untrn"        # additional gas tokens that bots can use to cover gas fees
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
 #   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
 #   "amplitude1":       5000,           # ~50% of price:    current price will vary by ~50% of set price ratio
@@ -68,6 +69,7 @@ getTokenConfigArray() {
     # docs: https://jqlang.github.io/jq/manual/#alternative-operator
 
     # split the total tokens budget across each bot so each env doesn't need to worry about the number of bots
+    # this includes extra gas passed in the config or default config object
     bot_count=$( getBotCount )
     # by default shift the period of each token pair slightly so they are not exactly in sync
     echo "$TOKEN_CONFIG" | jq -r '
@@ -99,6 +101,11 @@ getTokenConfigArray() {
                 period1: (.value.period1 // $defaults.period1 // (36000 + .key)),
                 amplitude2: (.value.amplitude2 // $defaults.amplitude2 // 1000),
                 period2: (.value.period2 // $defaults.period2 // (600 + .key)),
+                gas: (
+                    (.value.gas // $defaults.gas // "0untrn")
+                    | capture("(?<amount>[0-9]+)(?<denom>.+)")
+                    | ([((.amount | tonumber) / '$bot_count' | floor), .denom] | join(""))
+                ),
             },
         })
     '

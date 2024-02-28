@@ -45,8 +45,7 @@ then
     token_pair_config_array_length=$( echo "$token_pair_config_array" | jq -r 'length' )
     for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
     do
-        token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index]" )
-        token_pair=$( echo "$token_pair_config" | jq -r '.pair' )
+        token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair" )
         denom0=$( echo "$token_pair" | jq -r '.[0].denom' )
         denom1=$( echo "$token_pair" | jq -r '.[1].denom' )
         amount0=$( echo "$token_pair" | jq -r '.[0].amount' )
@@ -54,6 +53,16 @@ then
         # accumulate amounts under each denom key
         denom_amounts["$denom0"]=$(( ${denom_amounts["$denom0"]:-0} + $amount0 ))
         denom_amounts["$denom1"]=$(( ${denom_amounts["$denom1"]:-0} + $amount1 ))
+        # get extra gas amount if it exists
+        token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
+        gas=$( echo "$token_pair_config" | jq -r '.gas | capture("(?<amount>[0-9]+)(?<denom>.+)")' )
+        amount_gas=$( echo "$gas" | jq -r '.amount' )
+        # add extra gas amount if it exists
+        if [ "$amount_gas" -gt "0" ]
+        then
+            denom_gas=$( echo "$gas" | jq -r '.denom' )
+            denom_amounts["$denom_gas"]=$(( ${denom_amounts["$denom_gas"]:-0} + $amount_gas ))
+        fi
     done
 
     # create tokens string from accumulated amounts distributed to each bot
