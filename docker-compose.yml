@@ -20,7 +20,7 @@ services:
         echo "Starting $$CHAINID..."
         neutrond start                             \
             --log_level "$$LOG_LEVEL"              \
-            --home "./data/$$CHAINID"              \
+            --home "$$CHAIN_DIR"                   \
             --pruning=nothing                      \
             --grpc.address="0.0.0.0:$$GRPCPORT"    \
             --grpc-web.address="0.0.0.0:$$GRPCWEB"
