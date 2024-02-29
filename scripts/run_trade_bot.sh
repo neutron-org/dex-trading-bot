@@ -226,6 +226,7 @@ do
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
     # compute goal price (and inverse gola price for inverted token pair order: token1<>token0)
     goal_price=$(( $current_price + $deviation ))
+    goal_price_ratio=$( echo "1.0001^$goal_price" | bc -l )
     inverse_goal_price=$(( $goal_price * -1 ))
 
     # - make a swap to get to current price
@@ -234,14 +235,12 @@ do
     # first, find the reserves of tokens that are outside the desired price
     # then swap those reserves
     echo "making query: of current '$token0' ticks"
-    reserves0=$( \
+    first_tick0_price_ratio=$(
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
-      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > $inverse_goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+      | jq ".tick_liquidity[0].pool_reserves.key.price_taker_to_maker"
     )
-    # convert back to decimal notation with float precision
-    reserves0=$( printf '%.0f\n' "$reserves0" )
     # use bc for aribtrary precision math comparison (non-zero result evals true)
-    if (( $(bc <<< "$reserves0 > 0") ))
+    if (( $( bc <<< "$first_tick0_price_ratio > $goal_price_ratio" ) ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
       trade_amount="$( neutrond query bank balances $address --denom $token1 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
@@ -281,13 +280,11 @@ do
       fi
     else
       echo "making query: of current '$token1' ticks"
-      reserves1=$( \
+      first_tick1_price_ratio=$(
         neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 100 \
-        | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) < $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+        | jq ".tick_liquidity[0].pool_reserves.key.price_opposite_taker_to_maker"
       )
-      # convert back to decimal notation with float precision
-      reserves1=$( printf '%.0f\n' "$reserves1" )
-      if (( $(bc <<< "$reserves1 > 0") ))
+      if (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
       then
         echo "making place-limit-order: '$token0' -> '$token1'"
         trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
