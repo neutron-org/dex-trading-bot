@@ -138,6 +138,7 @@ do
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
+    rebalance_factor=$( echo "$token_pair_config" | jq -r '.rebalance_factor' )
     deposit_factor=$( echo "$token_pair_config" | jq -r '.deposit_factor' )
     swap_factor=$( echo "$token_pair_config" | jq -r '.swap_factor' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
@@ -330,14 +331,34 @@ do
       break
     fi
 
-    # - replace the end pieces of liquidity with values closer to the current price
+    echo "making query: finding user's deposits to re-balance"
+    user_deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
+    sorted_user_deposits=$(
+      echo "$user_deposits" | jq "
+        .deposits
+        | map(select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\"))
+        | sort_by(.center_tick_index | tonumber)
+      "
+    )
+    # get approximate token deposits on each side, ordered
+    token0_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) + (.fee | tonumber) < $current_price))" )
+    token1_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) - (.fee | tonumber) > $current_price)) | reverse" )
 
+    # calculate how many of each to rebalance (rebalance a fraction of the excessive deposits on either side)
+    # note: to avoid empty errors, we "rebalance" at least one tick from each side closer to the current price goal (this could be fixed in the future)
+    excess_count_filter="(length - $tick_count_on_each_side) * $rebalance_factor | floor | [., 1] | max"
+    token0_excess_user_deposits_count=$( echo "$token0_sorted_user_deposits" | jq -r "$excess_count_filter" )
+    token1_excess_user_deposits_count=$( echo "$token1_sorted_user_deposits" | jq -r "$excess_count_filter" )
+    excess_user_deposits_count=$(( $token0_excess_user_deposits_count + $token1_excess_user_deposits_count ))
+
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
+
+    # rebalance: deposit ticks on one side to make up for the ticks that we withdraw from the other side
     # determine new indexes close to the current price (within deposit accuracy, but not within swap accuracy)
-    new_index0=$( get_integer_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy )) )
-    new_index1=$( get_integer_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy )) )
-
-    # add these extra ticks to prevent swapping though all ticks errors
-    # we deposit first to lessen the cases where we have entirely one-sided liquidity
     echo "making deposit: '$token0' + '$token1'"
     neutrond tx dex deposit \
       `# receiver` \
@@ -347,21 +368,33 @@ do
       `# token-b` \
       $token1 \
       `# list of amount-0` \
-      "$token0_single_tick_deposit_amount,0" \
+      "$(
+        repeat_with_comma "$token0_single_tick_deposit_amount" "$token1_excess_user_deposits_count"
+      ),$(
+        repeat_with_comma "0" "$token0_excess_user_deposits_count"
+      )" \
       `# list of amount-1` \
-      "0,$token1_single_tick_deposit_amount" \
-      `# list of tick-index` \
-      "[$new_index0,$new_index1]" \
+      "$(
+        repeat_with_comma "0" "$token1_excess_user_deposits_count"
+      ),$(
+        repeat_with_comma "$token1_single_tick_deposit_amount" "$token0_excess_user_deposits_count"
+      )" \
+      `# list of tickIndexInToOut` \
+      "[$(
+        get_joined_array $token1_excess_user_deposits_count get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy ))
+      ),$(
+        get_joined_array $token0_excess_user_deposits_count get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy ))
+      )]" \
       `# list of fees` \
-      "$( get_joined_array 2 get_fee "$fees" )" \
+      "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
       `# disable_autoswap` \
-      false,false \
+      "$(repeat_with_comma "false" "$excess_user_deposits_count")" \
       `# options` \
       --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
       | jq -r '.txhash' \
       | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
       | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-      | xargs -I{} echo "{} deposited: new close-to-price ticks $new_index0, $new_index1"
+      | xargs -I{} echo "{} deposited: new close-to-price ticks ($excess_user_deposits_count)"
 
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
@@ -370,25 +403,30 @@ do
     fi
 
     # find reserves to withdraw
-    echo "making query: finding '$token0', '$token1' deposits to withdraw"
-    user_deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
-    sorted_user_deposits=$(
-      echo "$user_deposits" | jq "[.deposits[] | select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\")] | sort_by((.center_tick_index | tonumber))"
-    )
-
-    last_liquidity0=$( echo "$sorted_user_deposits" | jq '.[0]' )
-    fee0=$( echo "$last_liquidity0" | jq -r '.fee' )
-    index0=$( echo "$last_liquidity0" | jq -r '.center_tick_index' )
-    reserves0=$( echo "$last_liquidity0" | jq -r '.shares_owned' )
-
-    last_liquidity1=$( echo "$sorted_user_deposits" | jq '.[-1]' )
-    fee1=$( echo "$last_liquidity1" | jq -r '.fee' )
-    index1=$( echo "$last_liquidity1" | jq -r '.center_tick_index' )
-    reserves1=$( echo "$last_liquidity1" | jq -r '.shares_owned' )
-
-    # withdraw the end values
-    if [ ! -z $reserves0 ] && [ ! -z $reserves1 ]
+    token0_sorted_excess_user_deposits="[]"
+    if [ "$token0_excess_user_deposits_count" -gt "0" ]
     then
+      token0_sorted_excess_user_deposits=$( echo "$token0_sorted_user_deposits" | jq ".[0:$token0_excess_user_deposits_count]" )
+    fi
+
+    token1_sorted_excess_user_deposits="[]"
+    if [ "$token1_excess_user_deposits_count" -gt "0" ]
+    then
+      token1_sorted_excess_user_deposits=$( echo "$token1_sorted_user_deposits" | jq ".[0:$token1_excess_user_deposits_count]" )
+    fi
+
+    user_deposits_to_withdraw=$(
+      echo "$token0_sorted_excess_user_deposits $token1_sorted_excess_user_deposits" | jq -s 'flatten'
+    )
+    user_deposits_to_withdraw_count=$( echo "$user_deposits_to_withdraw" | jq -r 'length' )
+
+    # withdraw deposits
+    if [ "$user_deposits_to_withdraw_count" -gt "0" ]
+    then
+      reserves=$( echo "$user_deposits_to_withdraw" | jq -r  '.[] | .shares_owned' )
+      indexes=$( echo "$user_deposits_to_withdraw" | jq -c 'map(.center_tick_index | tonumber)' ) # indexes can be a plain array
+      fees=$( echo "$user_deposits_to_withdraw" | jq -r '.[] | .fee' )
+
       echo "making withdrawal: '$token0' + '$token1'"
       neutrond tx dex withdrawal \
         `# receiver` \
@@ -398,17 +436,17 @@ do
         `# token-b` \
         $token1 \
         `# list of shares-to-remove` \
-        "$reserves0,$reserves1" \
+        "$( join_with_comma $reserves )" \
         `# list of tick-index (adjusted to center tick)` \
-        "[$index0,$index1]" \
+        "$indexes" \
         `# list of fees` \
-        "$fee0,$fee1" \
+        "$( join_with_comma $fees )" \
         `# options` \
         --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
         | jq -r '.txhash' \
         | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
         | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} withdrew:  end ticks $index0, $index1"
+        | xargs -I{} echo "{} withdrew:  end ticks ($user_deposits_to_withdraw_count) $indexes"
     fi
 
   done

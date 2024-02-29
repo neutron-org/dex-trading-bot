@@ -50,6 +50,7 @@ getBotNumber() {
 #   "ticks":            100,            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "gas":              "0untrn"        # additional gas tokens that bots can use to cover gas fees
+#   "rebalance_factor": 0.1,            # fraction of excessive deposits on either pair side to rebalance on each trade
 #   "deposit_factor":   0.1,            # fraction of the recommended maximum reserves to use on a single tick deposit
 #   "swap_factor":      0.1,            # max fraction of a bot's token reserves to use on a single swap trade (max: 1)
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
@@ -109,6 +110,7 @@ getTokenConfigArray() {
                 price: (.value.price // $defaults.price // 1),
                 ticks: (.value.ticks // $defaults.ticks // 100),
                 fees: (.value.fees // $defaults.fees // [1, 5, 20, 100]),
+                rebalance_factor: (.value.rebalance_factor // $defaults.rebalance_factor // 0.1),
                 deposit_factor: (.value.deposit_factor // $defaults.deposit_factor // 0.1),
                 swap_factor: (.value.swap_factor // $defaults.swap_factor // 0.1),
                 swap_accuracy: (.value.swap_accuracy // $defaults.swap_accuracy // 100),
