@@ -134,6 +134,7 @@ do
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
+    deposit_factor=$( echo "$token_pair_config" | jq -r '.deposit_factor' )
     swap_factor=$( echo "$token_pair_config" | jq -r '.swap_factor' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
@@ -152,8 +153,11 @@ do
     # in general terms this is:
     #     - deposited = available / (bot_count+1) / 2
     #     -  reserves = available - deposited
-    token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
-    token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
+    token0_max_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
+    token1_max_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
+    token0_initial_deposit_amount=$( echo " $token0_max_initial_deposit_amount * $deposit_factor " | bc -l | awk '{print int($1+0.5)}' )
+    token1_initial_deposit_amount=$( echo " $token1_max_initial_deposit_amount * $deposit_factor " | bc -l | awk '{print int($1+0.5)}' )
+
     # the amount of a single this is the deposit amount spread across the ticks on one side
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
