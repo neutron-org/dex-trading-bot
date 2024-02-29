@@ -164,19 +164,23 @@ getFundedUser() {
     person="$( createUser "$docker_env" )"
     address="$( neutrond keys show $person -a )"
     # wait for the user to be funded
-    token_count=0
-    while [ "$token_count" -eq 0 ]
+    try_count=20
+    for (( i=1; i<=$try_count; i++ ))
     do
         balances=$( neutrond query bank balances "$address" --output json )
         token_count=$( echo "$balances" | jq -r '.balances | length' )
-        if [ "$token_count" -eq 0 ]
+        if [ "$token_count" -gt 0 ]
         then
-            echo "funding: user $person has no tokens, waiting for funds..." > /dev/stderr
+            echo "funding: user $person is funded!" > /dev/stderr
+            echo "$person"
+            return 0
+        else
+            echo "funding: user $person has no tokens, waiting for funds (tried $i times)..." > /dev/stderr
             sleep 3
         fi
     done
-    echo "funding: user $person is funded!" > /dev/stderr
-    echo "$person"
+    echo "funding error: user $person has no tokens, waited $try_count times with no response" > /dev/stderr
+    exit 1
 }
 
 throwOnTxError() {
