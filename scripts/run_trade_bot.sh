@@ -236,7 +236,7 @@ do
     # then swap those reserves
     echo "making query: of current '$token0' ticks"
     first_tick0_price_ratio=$(
-      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
+      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 1 \
       | jq ".tick_liquidity[0].pool_reserves.key.price_taker_to_maker"
     )
     # use bc for aribtrary precision math comparison (non-zero result evals true)
@@ -281,7 +281,7 @@ do
     else
       echo "making query: of current '$token1' ticks"
       first_tick1_price_ratio=$(
-        neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 100 \
+        neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
         | jq ".tick_liquidity[0].pool_reserves.key.price_opposite_taker_to_maker"
       )
       if (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
