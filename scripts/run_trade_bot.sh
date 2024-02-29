@@ -278,50 +278,50 @@ do
       else
         echo "skipping place-limit-order: '$token1' -> '$token0': not enough funds"
       fi
-    else
-      echo "making query: of current '$token1' ticks"
-      first_tick1_price_ratio=$(
-        neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
-        | jq ".tick_liquidity[0].pool_reserves.key.price_opposite_taker_to_maker"
-      )
-      if (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
+    fi
+    # find if there are tokens to swap in the other direction
+    echo "making query: of current '$token1' ticks"
+    first_tick1_price_ratio=$(
+      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
+      | jq ".tick_liquidity[0].pool_reserves.key.price_opposite_taker_to_maker"
+    )
+    if (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
+    then
+      echo "making place-limit-order: '$token0' -> '$token1'"
+      trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      if [ "$trade_amount" -gt "0" ]
       then
-        echo "making place-limit-order: '$token0' -> '$token1'"
-        trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
-        if [ "$trade_amount" -gt "0" ]
+        response="$(
+          neutrond tx dex place-limit-order \
+          `# receiver` \
+          $address \
+          `# token in` \
+          $token0 \
+          `# token out` \
+          $token1 \
+          `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
+          "[$goal_price]" \
+          `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
+          "$trade_amount" \
+            `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
+          `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
+          IMMEDIATE_OR_CANCEL \
+          `# options` \
+          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+        )"
+        # check for bad Tx submissions
+        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
         then
-          response="$(
-            neutrond tx dex place-limit-order \
-            `# receiver` \
-            $address \
-            `# token in` \
-            $token0 \
-            `# token out` \
-            $token1 \
-            `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-            "[$goal_price]" \
-            `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
-            "$trade_amount" \
-              `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
-            `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
-            IMMEDIATE_OR_CANCEL \
-            `# options` \
-            --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
-          )"
-          # check for bad Tx submissions
-          if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-          then
-            echo $response \
-              | jq -r '.txhash' \
-              | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-              | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-              | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
-          else
-            echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
-          fi
+          echo $response \
+            | jq -r '.txhash' \
+            | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
+            | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
+            | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
         else
-          echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
+          echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
         fi
+      else
+        echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
       fi
     fi
 
