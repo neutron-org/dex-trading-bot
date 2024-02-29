@@ -165,7 +165,7 @@ do
       | awk '{printf("%d\n",$0+0.5)}' \
     )
 
-    echo "pair: $token0<>$token1 current price index is $current_price"
+    echo "pair: $token0<>$token1 current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $token0 per $token1)"
 
     # if initial ticks do not yet exist, add them so we have some liquidity to swap with
     if [ -z "${tokens_available["$pair_index-$token0"]}" ]
