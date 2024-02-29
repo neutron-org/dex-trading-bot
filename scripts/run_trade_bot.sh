@@ -353,9 +353,9 @@ do
 
     # find reserves to withdraw
     echo "making query: finding '$token0', '$token1' deposits to withdraw"
-    user_deposits=$( \
-      wget -q -O - $API_ADDRESS/neutron/dex/user/deposits/$( neutrond keys show $person -a )?pagination.limit=1000 \
-    )
+    # note: there is a pagination issue in the Dex and deposits past the first 100 deposits cannot be queried for
+    #       (all pagination options are ignored)
+    user_deposits=$( neutrond query dex list-user-deposits "$address" --output json )
     sorted_user_deposits=$(
       echo "$user_deposits" | jq "[.deposits[] | select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\")] | sort_by((.center_tick_index | tonumber))"
     )
