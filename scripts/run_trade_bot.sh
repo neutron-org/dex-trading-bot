@@ -76,6 +76,33 @@ function get_fee {
   echo "$random_value"
 }
 
+# note: there is a pagination issue in the Dex CLI for lists (all pagination options are ignored)
+#       we can iterate through pages using the REST API of some endpoints
+function get_all_items_of_paginated_api_list {
+  path="$1"
+  list_key="$2"
+  page_size="${3:-"250"}"
+
+  # collect all results in an array
+  results_paginated=()
+  # keep querying while a next_key has still been found
+  while [ -z "$results" ] || [ ! -z "$next_key" ]
+  do
+      results=$( wget -q -O - "${API_ADDRESS}$path?pagination.count_total=1&pagination.limit=$page_size&pagination.key=$next_key" )
+      results_paginated+=( $results )
+      next_key=$( echo "$results" | jq -r '.pagination.next_key // empty' )
+  done
+
+  # output the merged list of items and a merged pagination attributes
+  # this should make the output the same format as the REST API output
+  echo "${results_paginated[@]}" | jq -s -r "
+    {
+      $list_key: map(.$list_key) | flatten,
+      pagination: (.[-1].pagination * { total: .[0].pagination.total }),
+    }
+  "
+}
+
 # create a place to hold the tokens used state
 # we will try not to spend more tokens than are agreed to in the config ENV var
 declare -A tokens_available=()
@@ -353,9 +380,7 @@ do
 
     # find reserves to withdraw
     echo "making query: finding '$token0', '$token1' deposits to withdraw"
-    # note: there is a pagination issue in the Dex and deposits past the first 100 deposits cannot be queried for
-    #       (all pagination options are ignored)
-    user_deposits=$( neutrond query dex list-user-deposits "$address" --output json )
+    user_deposits=$( get_all_items_of_paginated_api_list "/neutron/dex/user/deposits/$address" "deposits" )
     sorted_user_deposits=$(
       echo "$user_deposits" | jq "[.deposits[] | select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\")] | sort_by((.center_tick_index | tonumber))"
     )
