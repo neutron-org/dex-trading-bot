@@ -117,6 +117,7 @@ do
 
   echo "... loop will delay for: $delay"
   sleep $delay
+  echo "loop: starting at $EPOCHSECONDS"
 
   for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
   do
