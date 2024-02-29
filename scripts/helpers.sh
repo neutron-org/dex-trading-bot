@@ -34,7 +34,7 @@ getBotNumber() {
 # the object keys are the usable tokens for each pair (to be shared across all bots),
 # the object values are the price ratio of token1/token0 or a config object: (default values are listed)
 # PAIR_CONFIG = {
-#   "price":            1,              # price ratio is of token1/token0
+#   "price":            1,              # price ratio is of token1/token0 (how many token0 is required to buy 1 token1?)
 #   "ticks":            100,            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "gas":              "0untrn"        # additional gas tokens that bots can use to cover gas fees
