@@ -351,6 +351,9 @@ do
     token1_excess_user_deposits_count=$( echo "$token1_sorted_user_deposits" | jq -r "$excess_count_filter" )
     excess_user_deposits_count=$(( $token0_excess_user_deposits_count + $token1_excess_user_deposits_count ))
 
+    echo "rebalance $token0 -> $token1: will move $token0_excess_user_deposits_count ticks"
+    echo "rebalance $token1 -> $token0: will move $token1_excess_user_deposits_count ticks"
+
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
     then
@@ -394,7 +397,7 @@ do
       | jq -r '.txhash' \
       | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
       | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-      | xargs -I{} echo "{} deposited: new close-to-price ticks ($excess_user_deposits_count)"
+      | xargs -I{} echo "{} deposited: new close-to-price ticks ($token1_excess_user_deposits_count, $token0_excess_user_deposits_count)"
 
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
