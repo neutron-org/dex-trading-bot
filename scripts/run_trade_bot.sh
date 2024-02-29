@@ -224,7 +224,9 @@ do
 
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
+    # compute goal price (and inverse gola price for inverted token pair order: token1<>token0)
     goal_price=$(( $current_price + $deviation ))
+    inverse_goal_price=$(( $goal_price * -1 ))
 
     # - make a swap to get to current price
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
@@ -234,7 +236,7 @@ do
     echo "making query: of current '$token0' ticks"
     reserves0=$( \
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
-      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > ($goal_price * -1)) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > $inverse_goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
     )
     # convert back to decimal notation with float precision
     reserves0=$( printf '%.0f\n' "$reserves0" )
@@ -254,7 +256,7 @@ do
           `# token out` \
           $token0 \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$(( $goal_price * -1 ))]" \
+          "[$inverse_goal_price]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
@@ -300,7 +302,7 @@ do
             `# token out` \
             $token1 \
             `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-            "[$(( $goal_price * 1 ))]" \
+            "[$goal_price]" \
             `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
             "$trade_amount" \
               `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
