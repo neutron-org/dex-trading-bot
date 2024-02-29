@@ -224,7 +224,7 @@ do
     # then swap those reserves
     echo "making query: of current '$token0' ticks"
     reserves0=$( \
-      wget -q -O - $API_ADDRESS/neutron/dex/tick_liquidity/$token0%3C%3E$token1/$token0?pagination.limit=100 \
+      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
       | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
     )
     # convert back to decimal notation with float precision
@@ -265,7 +265,7 @@ do
     else
       echo "making query: of current '$token1' ticks"
       reserves1=$( \
-        wget -q -O - $API_ADDRESS/neutron/dex/tick_liquidity/$token0%3C%3E$token1/$token1?pagination.limit=100 \
+        neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 100 \
         | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) < $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
       )
       # convert back to decimal notation with float precision
