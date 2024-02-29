@@ -227,7 +227,6 @@ do
     # compute goal price (and inverse gola price for inverted token pair order: token1<>token0)
     goal_price=$(( $current_price + $deviation ))
     goal_price_ratio=$( echo "1.0001^$goal_price" | bc -l )
-    inverse_goal_price=$(( $goal_price * -1 ))
 
     # - make a swap to get to current price
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
@@ -255,7 +254,7 @@ do
           `# token out` \
           $token0 \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$inverse_goal_price]" \
+          "[$(( $goal_price * -1 ))]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
