@@ -76,6 +76,10 @@ function get_fee {
   echo "$random_value"
 }
 
+function rounded_calculation {
+  echo " $1 " | bc -l | awk '{print int($1+0.5)}'
+}
+
 # create a place to hold the tokens used state
 # we will try not to spend more tokens than are agreed to in the config ENV var
 declare -A tokens_available=()
@@ -155,8 +159,8 @@ do
     #     -  reserves = available - deposited
     token0_max_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
     token1_max_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
-    token0_initial_deposit_amount=$( echo " $token0_max_initial_deposit_amount * $deposit_factor " | bc -l | awk '{print int($1+0.5)}' )
-    token1_initial_deposit_amount=$( echo " $token1_max_initial_deposit_amount * $deposit_factor " | bc -l | awk '{print int($1+0.5)}' )
+    token0_initial_deposit_amount=$( rounded_calculation "$token0_max_initial_deposit_amount * $deposit_factor" )
+    token1_initial_deposit_amount=$( rounded_calculation "$token1_max_initial_deposit_amount * $deposit_factor" )
 
     # the amount of a single this is the deposit amount spread across the ticks on one side
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
@@ -165,10 +169,9 @@ do
     # determine the new current price goal
     # approximate price with sine curves of given amplitude and period
     # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
-    current_price=$( \
-      echo " $price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
-      | bc -l \
-      | awk '{printf("%d\n",$0+0.5)}' \
+    current_price=$(
+      rounded_calculation \
+      "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
     )
 
     echo "pair: $token0<>$token1 current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $token0 per $token1)"
