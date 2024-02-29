@@ -225,7 +225,7 @@ do
     echo "making query: of current '$token0' ticks"
     reserves0=$( \
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
-      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > ($goal_price * -1)) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
     )
     # convert back to decimal notation with float precision
     reserves0=$( printf '%.0f\n' "$reserves0" )
