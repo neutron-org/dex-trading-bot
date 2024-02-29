@@ -7,7 +7,7 @@ SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 token_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 
 # check that token config is set, if it is not set, there is nothing to do
-token_config_length=$( echo ${TOKEN_CONFIG:-"[]"} | jq -r 'length' )
+token_config_length=$( echo ${token_config_array:-"[]"} | jq -r 'length' )
 if [ ! "${token_config_length:-0}" -gt "0" ]
 then
     echo "incomplete TOKEN_CONFIG: at least one valid pair is required to trade"
