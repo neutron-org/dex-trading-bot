@@ -260,7 +260,7 @@ getFaucetWallet() {
     then
         # add the faucet account
         createUserKey "faucet" "$mnemonic"
-        echo "$person";
+        echo "faucet";
     else
         echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
         exit 1
