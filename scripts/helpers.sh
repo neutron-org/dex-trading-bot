@@ -1,14 +1,26 @@
 #!/bin/bash
 set -e
 
+# note: these are the only docker command used when running a single bot
+#       so you can optionally add a Docker "env" JSON string to run a single bot without Docker
 getDockerEnv() {
     # get this Docker container env info
-    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+    if [ ! -z "$DOCKER_ENV" ]
+    then
+        echo "$DOCKER_ENV"
+    else
+        curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+    fi
 }
 getDockerEnvs() {
-    docker_env="${1:-"$( getDockerEnv )"}"
-    docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
-    docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
+    if [ ! -z "$DOCKER_ENV" ]
+    then
+        echo "[$DOCKER_ENV]"
+    else
+        docker_env="${1:-"$( getDockerEnv )"}"
+        docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
+        docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
+    fi
 }
 getBotCount() {
     docker_envs="${1:-"$( getDockerEnvs )"}"
