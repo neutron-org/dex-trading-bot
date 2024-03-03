@@ -60,8 +60,9 @@ services:
       - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
       - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-2}
       - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
-      - MNEMONICS=${MNEMONICS}
-      - MNEMONIC=${MNEMONIC}
+      # faucet mnemonics should be set with specific MNEMONIC/S:
+      # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
+      - MNEMONICS=${MNEMONICS:-$MNEMONIC}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

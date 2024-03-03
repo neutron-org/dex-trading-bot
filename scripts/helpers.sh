@@ -129,17 +129,20 @@ getFaucetWallet() {
     MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
     mnemonics_array=()
     i=1
-    while mnemonic=$(echo "$MNEMONICS" | cut -d\; -f$i ); [ -n "$mnemonic" ]
+    # accept line breaks, tabs, semicolons, commas, and multiple spaces as delimiters
+    mnemonics_json=$( echo "\"$MNEMONICS\"" | tr '\r\n;,' '  ' | jq -r 'split("  +"; "g")' )
+    mnemonics_json_count=$( echo "$mnemonics_json" | jq -r 'length' )
+    for (( i=0; i<$mnemonics_json_count; i++ ))
     do
+        mnemonic=$( echo "$mnemonics_json" | jq -r ".[$i]"  )
         # do not include duplicates
-        if [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
+        if [ ! -z "$mnemonic" ] && [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
         then
             mnemonics_array+=( "$mnemonic" )
         fi
-        i=$(( i+1 ))
     done
 
-    # pick the mnenomic to use out of the valid array
+    # pick the mnenomic to use out of the mnemonics array
     bot_number="$( getBotNumber "$docker_env" )"
     bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
     mnemonic=$(echo "${mnemonics_array[$bot_index]}")
