@@ -33,8 +33,13 @@ then
 
     # multi-send to multiple users ($tokens amount is sent to each user)
     tokens="${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc"
+    send_or_multi_send="send"
+    if [ "${#user_addresses_array[@]}" -gt 1 ]
+    then
+        send_or_multi_send="multi-send"
+    fi
     response=$(
-        neutrond tx bank multi-send \
+        neutrond tx bank $send_or_multi_send \
             "$( neutrond keys show $funder -a )" \
             "${user_addresses_array[@]}" \
             $tokens \
