@@ -93,6 +93,8 @@ then
         | map(
             select(.denom | match("^(?!neutron/pool)"))
             | if .denom == "untrn" then ({ amount: ((.amount | tonumber) - '"$gas"' | tostring), denom: .denom }) else . end
+            # ensure removal of gas from untrn amount does not make the amount negative \
+            | select((.amount | tonumber) > 0)
             | [.amount, .denom]
             | add
         )
