@@ -90,29 +90,51 @@ then
 
     # select non-pool tokens to return but subtract a gas fee to use from untrn
     gas="200000"
-    amounts=$( echo "$balances" | jq -r '
-        .balances
-        | map(
-            select(.denom | match("^(?!neutron/pool)"))
-            | if .denom == "untrn" then ({ amount: ((.amount | tonumber) - '"$gas"' | tostring), denom: .denom }) else . end
-            # ensure removal of gas from untrn amount does not make the amount negative \
-            | select((.amount | tonumber) > 0)
-            | [.amount, .denom]
-            | add
-        )
-        | join(",")
-    ' )
 
-    # return funds only if there are amounts to return
-    if [ ! -z "$amounts" ]
+    # refund only funded balances (user may hold unrelated tokens)
+    funded_balances=$(
+        echo "\"$( bash $SCRIPTPATH/helpers.sh getTokenConfigTokensRequired )\"" \
+        | jq -r 'split(",") | map(capture("(?<amount>[0-9]+)(?<denom>.+)"))'
+    )
+    funded_balances_count="$( echo "$funded_balances" | jq -r 'length' )"
+    refund_amounts_array=()
+    for (( i=0; i<$funded_balances_count; i++ ))
+    do
+        # check each required balance in series
+        funded_balance=$( echo "$funded_balances" | jq -r ".[$i]" )
+        funded_denom=$( echo "$funded_balance" | jq -r '.denom' )
+        funded_amount=$( echo "$funded_balance" | jq -r '.amount' )
+        refund_amount=$( echo "$balances" | jq -r '
+            .balances
+            | map(
+                select(.denom == "'$funded_denom'")
+                # remove gas fee \
+                | if .denom == "untrn" then ({ amount: ((.amount | tonumber) - '$gas' | tostring), denom: .denom }) else . end
+                # ensure removal of gas from untrn amount does not make the amount negative \
+                | select((.amount | tonumber) > 0)
+                # set max amount out to the funded amount \
+                | [([(.amount | tonumber), '$funded_amount'] | min | tostring), .denom]
+                | add
+            )[]
+        ' )
+        if [ ! -z "$refund_amount" ]
+        then
+            refund_amounts_array+=( "$refund_amount" )
+        fi
+    done
+
+    # return funds only if there are refund_amounts to return
+    if [ "${#refund_amounts_array[@]}" -gt 0 ]
     then
-        echo "on exit refund: will refund faucet"
+        # transform refund_amounts from array to token amount
+        refund_amounts=$( echo "\"${refund_amounts_array[@]}\"" | jq -r 'split(" ") | join(",")' )
+        echo "on exit refund: will refund faucet: $refund_amounts"
         # send tokens back to the funder
         response=$(
             neutrond tx bank send \
                 "$( neutrond keys show $user -a )" \
                 "$( neutrond keys show $funder -a )" \
-                $amounts \
+                "$refund_amounts" \
                 --broadcast-mode sync \
                 --output json \
                 --gas $gas \
@@ -127,7 +149,7 @@ then
             tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
             if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
             then
-                echo "refunded users: $funder with tokens $amounts from $user"
+                echo "refunded users: $funder with $refund_amounts from $user"
             else
                 echo "refunding user error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
             fi
