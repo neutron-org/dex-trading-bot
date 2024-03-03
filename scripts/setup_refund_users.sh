@@ -18,74 +18,64 @@ if [ ! -z "$ON_EXIT_WITHDRAW_POOLS" ]
 then
     echo "will withdraw pools before exiting"
     # get all user's dex deposits
-    deposits_paginated=()
-    page=1
-    # note: passing next key or page number to the CLI doesn't seem to work
-    #       instead we inefficiently grab as many deposits as possible and withdraw them and repeat til done
-    while [ -z "$deposits" ] || [ ! -z "$( echo "$deposits" | jq -r '.pagination.next_key // ""' )" ]
-    do
-        deposits=$( neutrond query dex list-user-deposits "$address" --limit 1000 --output json )
-        if [ "$( echo "$deposits" | jq -r '.deposits | length' )" ]
-        then
-            # collect unique pair_ids
-            pair_tokens=$( echo "$deposits" | jq -r '.deposits | unique_by([.pair_id.token0, .pair_id.token1] | join(",")) | map(.pair_id)' )
-            pair_tokens_count=$( echo "$pair_tokens" | jq -r 'length' )
+    deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
+    if [ "$( echo "$deposits" | jq -r '.deposits | length' )" ]
+    then
+        # collect unique pair_ids
+        pair_tokens=$( echo "$deposits" | jq -r '.deposits | unique_by([.pair_id.token0, .pair_id.token1] | join(",")) | map(.pair_id)' )
+        pair_tokens_count=$( echo "$pair_tokens" | jq -r 'length' )
 
-            # withdraw pools from each token pair
-            for (( pair_token_index=0; pair_token_index<$pair_tokens_count; pair_token_index++ ))
-            do
-                token0=$( echo "$pair_tokens" | jq -r ".[$pair_token_index].token0" )
-                token1=$( echo "$pair_tokens" | jq -r ".[$pair_token_index].token1" )
-                token_pair_deposits=$( echo "$deposits" | jq -r "
-                    .deposits
-                    | map(
-                        select(.pair_id.token0 == \"$token0\")
-                        | select(.pair_id.token1 == \"$token1\")
-                    )
-                ")
-                fees=$( echo "$token_pair_deposits" | jq -r 'map(.fee) | join(",")' )
-                indexes=$( echo "$token_pair_deposits" | jq -r 'map(.center_tick_index) | join(",")' )
-                reserves=$( echo "$token_pair_deposits" | jq -r 'map(.shares_owned) | join(",")' )
-
-                echo "making withdrawal: '$token0' + '$token1'"
-                response=$(
-                    neutrond tx dex withdrawal \
-                        `# receiver` \
-                        $address \
-                        `# token-a` \
-                        $token0 \
-                        `# token-b` \
-                        $token1 \
-                        `# list of shares-to-remove` \
-                        "$reserves" \
-                        `# list of tick-index (adjusted to center tick)` \
-                        "[$indexes]" \
-                        `# list of fees` \
-                        "$fees" \
-                        `# options` \
-                        --from $user --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+        # withdraw pools from each token pair
+        for (( pair_token_index=0; pair_token_index<$pair_tokens_count; pair_token_index++ ))
+        do
+            token0=$( echo "$pair_tokens" | jq -r ".[$pair_token_index].token0" )
+            token1=$( echo "$pair_tokens" | jq -r ".[$pair_token_index].token1" )
+            token_pair_deposits=$( echo "$deposits" | jq -r "
+                .deposits
+                | map(
+                    select(.pair_id.token0 == \"$token0\")
+                    | select(.pair_id.token1 == \"$token1\")
                 )
-                if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-                then
-                    tx_hash=$( echo $response | jq -r '.txhash' )
-                    # get tx result for msg
-                    tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-                    if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
-                    then
-                        ids=$( echo "$token_pair_deposits" | jq -r 'map([.center_tick_index, .fee] | join("/")) | join(",")' )
-                        echo "withdrew: ticks $ids"
-                    else
-                        echo "withdrawing error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
-                    fi
-                else
-                    echo "withdrawing error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
+            ")
+            fees=$( echo "$token_pair_deposits" | jq -r 'map(.fee) | join(",")' )
+            indexes=$( echo "$token_pair_deposits" | jq -r 'map(.center_tick_index) | join(",")' )
+            reserves=$( echo "$token_pair_deposits" | jq -r 'map(.shares_owned) | join(",")' )
 
+            echo "making withdrawal: '$token0' + '$token1'"
+            response=$(
+                neutrond tx dex withdrawal \
+                    `# receiver` \
+                    $address \
+                    `# token-a` \
+                    $token0 \
+                    `# token-b` \
+                    $token1 \
+                    `# list of shares-to-remove` \
+                    "$reserves" \
+                    `# list of tick-index (adjusted to center tick)` \
+                    "[$indexes]" \
+                    `# list of fees` \
+                    "$fees" \
+                    `# options` \
+                    --from $user --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+            )
+            if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+            then
+                tx_hash=$( echo $response | jq -r '.txhash' )
+                # get tx result for msg
+                tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
+                if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
+                then
+                    ids=$( echo "$token_pair_deposits" | jq -r 'map([.center_tick_index, .fee] | join("/")) | join(",")' )
+                    echo "withdrew: ticks $ids"
+                else
+                    echo "withdrawing error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
                 fi
-            done
-        fi
-    done
-    # echo "deposits_paginated: ${deposits_paginated[@]}"
-    # deposits=$( echo "${deposits_paginated[@]}" | jq -s -r 'map(.deposits) | flatten' )
+            else
+                echo "withdrawing error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
+            fi
+        done
+    fi
 fi
 
 # check if user should refund the optional faucet
@@ -94,22 +84,13 @@ funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet || echo "" )
 if [ ! -z "$funder" ]
 then
     # get all balances
-    balances_paginated=()
-    page=1
-    # note: passing the given "next_key" string to the CLI doesn't seem to work
-    #       (acts as if next_key is an empty string), use page numbers instead
-    while [ -z "$balances" ] || [ ! -z "$( echo "$balances" | jq -r '.pagination.next_key // ""' )" ]
-    do
-        balances=$( neutrond query bank balances "$address" --page "$page" --output json )
-        balances_paginated+=( $balances )
-        page=$(( $page + 1 ))
-    done
-    balances=$( echo " ${balances_paginated[@]} " | jq -s -r 'map(.balances) | flatten' )
+    balances=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/cosmos/bank/v1beta1/balances/$address" "balances" )
 
     # select non-pool tokens to return but subtract a gas fee to use from untrn
     gas="200000"
     amounts=$( echo "$balances" | jq -r '
-        map(
+        .balances
+        | map(
             select(.denom | match("^(?!neutron/pool)"))
             | if .denom == "untrn" then ({ amount: ((.amount | tonumber) - '"$gas"' | tostring), denom: .denom }) else . end
             | [.amount, .denom]

@@ -331,7 +331,8 @@ getFundedUserBalances() {
     try_count=20
     for (( i=1; i<=$try_count; i++ ))
     do
-        balances=$( neutrond query bank balances "$address" --limit 100 --count-total --output json )
+        # fetch all pages of user balances, as the user mnenomic may be given and not controlled here
+        balances=$( getAllItemsOfPaginatedAPIList "/cosmos/bank/v1beta1/balances/$address" "balances" )
         token_count=$( echo "$balances" | jq -r '.balances | length' )
         if [ "$token_count" -gt 0 ]
         then
@@ -364,6 +365,33 @@ getFundedUserBalances() {
     done
     echo "funding error: user $person has no tokens, did you include a FAUCET_MNEMONIC with enough tokens?" > /dev/stderr
     exit 1
+}
+
+# note: there is a pagination issue in the Dex CLI for lists (all pagination options are ignored)
+#       we can iterate through pages using the REST API of some endpoints
+getAllItemsOfPaginatedAPIList() {
+    path="$1"
+    list_key="$2"
+    page_size="${3:-"250"}"
+
+    # collect all results in an array
+    results_paginated=()
+    # keep querying while a next_key has still been found
+    while [ -z "$results" ] || [ ! -z "$next_key" ]
+    do
+        results=$( wget -q -O - "${API_ADDRESS}$path?pagination.count_total=1&pagination.limit=$page_size&pagination.key=$next_key" )
+        results_paginated+=( $results )
+        next_key=$( echo "$results" | jq -r '.pagination.next_key // empty' )
+    done
+
+    # output the merged list of items and a merged pagination attributes
+    # this should make the output the same format as the REST API output
+    echo "${results_paginated[@]}" | jq -s -r "
+        {
+            $list_key: map(.$list_key) | flatten,
+            pagination: (.[-1].pagination * { total: .[0].pagination.total }),
+        }
+    "
 }
 
 throwOnTxError() {
