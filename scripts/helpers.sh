@@ -379,7 +379,17 @@ getAllItemsOfPaginatedAPIList() {
     # keep querying while a next_key has still been found
     while [ -z "$results" ] || [ ! -z "$next_key" ]
     do
-        results=$( wget -q -O - "${API_ADDRESS}$path?pagination.count_total=1&pagination.limit=$page_size&pagination.key=$next_key" )
+        results=$(
+            curl \
+            --connect-timeout 10 \
+            --fail \
+            --retry 30 \
+            --retry-connrefused \
+            --retry-max-time 30 \
+            --retry-delay 1 \
+            --retry-all-errors \
+            -s "${API_ADDRESS}$path?pagination.count_total=1&pagination.limit=$page_size&pagination.key=$next_key"
+        )
         results_paginated+=( $results )
         next_key=$( echo "$results" | jq -r '.pagination.next_key // empty' )
     done
