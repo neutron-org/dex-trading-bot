@@ -235,34 +235,15 @@ createUser() {
 
 getFaucetWallet() {
     docker_env="${1:-"$( getDockerEnv )"}"
-    # if mnenomics are defined then take wallet from a given mnemonic
-    MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
-    mnemonics_array=()
-    i=1
-    # accept line breaks, tabs, semicolons, commas, and multiple spaces as delimiters
-    mnemonics_json=$( echo "\"$MNEMONICS\"" | tr '\r\n;,' '  ' | jq -r 'split("  +"; "g")' )
-    mnemonics_json_count=$( echo "$mnemonics_json" | jq -r 'length' )
-    for (( i=0; i<$mnemonics_json_count; i++ ))
-    do
-        mnemonic=$( echo "$mnemonics_json" | jq -r ".[$i]"  )
-        # do not include duplicates
-        if [ ! -z "$mnemonic" ] && [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
-        then
-            mnemonics_array+=( "$mnemonic" )
-        fi
-    done
-
-    # pick the mnenomic to use out of the mnemonics array
-    bot_number="$( getBotNumber "$docker_env" )"
-    bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
-    mnemonic=$(echo "${mnemonics_array[$bot_index]}")
+    # use mnenomic from env vars
+    mnemonic="${FAUCET_MNEMONIC:-"$MNEMONIC"}"
     if [ ! -z "$mnemonic" ]
     then
         # add the faucet account
         createUserKey "faucet" "$mnemonic"
         echo "faucet";
     else
-        echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
+        echo "a mnemonic should be provided in FAUCET_MNEMONIC/MNEMONIC"
         exit 1
     fi
 }

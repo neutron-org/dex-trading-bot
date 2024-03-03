@@ -63,7 +63,7 @@ services:
       - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
       # faucet mnemonics should be set with specific MNEMONIC/S:
       # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
-      - MNEMONICS=${MNEMONICS:-$MNEMONIC}
+      - FAUCET_MNEMONIC=${FAUCET_MNEMONIC:-$MNEMONIC}
       # allow passing through a TOKEN_CONFIG object, defaulting to TOKEN_CONFIG_DEFAULT if not found
       - TOKEN_CONFIG=${TOKEN_CONFIG}
       # use (from default local node test wallets) up to about 10,000,000 (display) tokens in each pool
