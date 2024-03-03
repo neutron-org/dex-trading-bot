@@ -23,9 +23,6 @@ bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
 # fund all bots from bot 1
 if [ "$bot_number" -eq "1" ]
 then
-    # get funding user
-    funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet "$docker_env" )
-
     # gather the users of each bot container, one by one
     docker_envs="$( bash $SCRIPTPATH/helpers.sh getDockerEnvs "$docker_env" )"
     docker_envs_count="$( echo "$docker_envs" | jq -r 'length' )"
@@ -39,6 +36,13 @@ then
         user_addresses_array+=( "$( neutrond keys show $user -a )" )
     done
 
+    # get funding user last: will throw an error if mnenomic has already been used
+    funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet )
+fi
+
+# fund users from optional faucet account if set
+if [ ! -z "$funder" ] && [ "${#user_addresses_array[@]}" -gt 0 ]
+then
     # find the amount of tokens to given all accounts
     tokens=$( bash $SCRIPTPATH/helpers.sh getTokenConfigTokensRequired )
 

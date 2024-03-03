@@ -9,8 +9,6 @@ bash $SCRIPTPATH/check_chain_status.sh
 docker_env="$( bash $SCRIPTPATH/helpers.sh getDockerEnv )"
 bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
 
-# get funding user
-funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet "$docker_env" )
 # get funded user
 user=$( bash $SCRIPTPATH/helpers.sh createUser "$docker_env"  )
 address="$( neutrond keys show $user -a )"
@@ -90,26 +88,24 @@ then
     # deposits=$( echo "${deposits_paginated[@]}" | jq -s -r 'map(.deposits) | flatten' )
 fi
 
-# get all balances
-balances_paginated=()
-page=1
-# note: passing the given "next_key" string to the CLI doesn't seem to work
-#       (acts as if next_key is an empty string), use page numbers instead
-while [ -z "$balances" ] || [ ! -z "$( echo "$balances" | jq -r '.pagination.next_key // ""' )" ]
-do
-    balances=$( neutrond query bank balances "$address" --page "$page" --output json )
-    balances_paginated+=( $balances )
-    page=$(( $page + 1 ))
-done
-# echo "balances_paginated: ${balances_paginated[@]}"
-balances=$( echo "${balances_paginated[@]}" | jq -s -r 'map(.balances) | flatten' )
-# echo "balances: ${balances}"
-balances_count="$( echo "$balances" | jq -r 'length' )"
-# echo "balances_count: ${balances_count}"
-
-# refund funds if user has balances left
-if [ "${balances_count:-"0"}" -gt "0" ]
+# check if user should refund the optional faucet
+# get funding user
+funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet || echo "" )
+if [ ! -z "$funder" ]
 then
+    # get all balances
+    balances_paginated=()
+    page=1
+    # note: passing the given "next_key" string to the CLI doesn't seem to work
+    #       (acts as if next_key is an empty string), use page numbers instead
+    while [ -z "$balances" ] || [ ! -z "$( echo "$balances" | jq -r '.pagination.next_key // ""' )" ]
+    do
+        balances=$( neutrond query bank balances "$address" --page "$page" --output json )
+        balances_paginated+=( $balances )
+        page=$(( $page + 1 ))
+    done
+    balances=$( echo " ${balances_paginated[@]} " | jq -s -r 'map(.balances) | flatten' )
+
     # select non-pool tokens to return but subtract a gas fee to use from untrn
     gas="200000"
     amounts=$( echo "$balances" | jq -r '
@@ -122,6 +118,7 @@ then
         | join(",")
     ' )
 
+    # return funds only if there are amounts to return
     if [ ! -z "$amounts" ]
     then
         # send tokens back to the funder
@@ -151,7 +148,8 @@ then
         else
             echo "refunding user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
         fi
-    else
+    elif [ ! -z "$funder" ]
+    then
         echo "refunding user warning: $user has no tokens to refund to $funder"
     fi
 fi

@@ -266,8 +266,40 @@ createUserKey() {
 
 createUser() {
     docker_env="${1:-"$( getDockerEnv )"}"
-    # create mnenomic from container Env (without line breaks)
-    mnemonic=$( createMnemonic "$docker_env" )
+    BOT_MNEMONICS="${BOT_MNEMONICS:-"${BOT_MNEMONIC:-"${MNEMONICS:-"$MNEMONIC"}"}"}"
+    # get bot's mnemonic from env var if set
+    if [ ! -z "$BOT_MNEMONICS" ]
+    then
+        # collect non-empty, non-duplicate mnemonics for bots
+        mnemonics_array=()
+        i=1
+        # accept line breaks, tabs, semicolons, commas, and multiple spaces as delimiters
+        mnemonics_json=$( echo "\"$BOT_MNEMONICS\"" | tr '\r\n;,' '  ' | jq -r 'split("  +"; "g")' )
+        mnemonics_json_count=$( echo "$mnemonics_json" | jq -r 'length' )
+        for (( i=0; i<$mnemonics_json_count; i++ ))
+        do
+            mnemonic=$( echo "$mnemonics_json" | jq -r ".[$i]"  )
+            # do not include duplicates
+            if [ ! -z "$mnemonic" ] && [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
+            then
+                mnemonics_array+=( "$mnemonic" )
+            fi
+        done
+
+        # pick the mnenomic to use out of the mnemonics array
+        bot_number="$( getBotNumber "$docker_env" )"
+        bot_index=$(( $bot_number - 1 ))
+        mnemonic=$(echo "${mnemonics_array[$bot_index]}")
+        if [ -z "$mnemonic" ]
+        then
+            echo "mnemonics: there is no mnenomic available for bot $bot_number. Bot mnenomics should be unique to avoid out of sequence errors" > /dev/stderr
+            exit 1
+        fi
+    else
+        # if only FAUCET_NMENOMIC is defined: create a unique bot mnemonic
+        # create mnenomic from container Env string (without line breaks)
+        mnemonic=$( createMnemonic "$docker_env" )
+    fi
     echo "mnemonic: $mnemonic" > /dev/stderr
     # add the new account under hostname
     person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
@@ -277,18 +309,17 @@ createUser() {
     echo "$person";
 }
 
+# create optional faucet account
 getFaucetWallet() {
-    docker_env="${1:-"$( getDockerEnv )"}"
     # use mnenomic from env vars
-    mnemonic="${FAUCET_MNEMONIC:-"$MNEMONIC"}"
+    mnemonic="$FAUCET_MNEMONIC"
     if [ ! -z "$mnemonic" ]
     then
         # add the faucet account
+        # note: this may cause a "duplicated address created" error
+        #       if so, the faucet mnenomic has already been used by a bot
         createUserKey "faucet" "$mnemonic"
         echo "faucet";
-    else
-        echo "a mnemonic should be provided in FAUCET_MNEMONIC/MNEMONIC"
-        exit 1
     fi
 }
 
@@ -304,15 +335,34 @@ getFundedUserBalances() {
         token_count=$( echo "$balances" | jq -r '.balances | length' )
         if [ "$token_count" -gt 0 ]
         then
+            # check that the user has the required balances
+            required_balances=$(
+                echo "\"$( getTokenConfigTokensRequired )\"" \
+                | jq -r 'split(",") | map(capture("(?<amount>[0-9]+)(?<denom>.+)"))'
+            )
+            required_balances_count="$( echo "$required_balances" | jq -r 'length' )"
+            for (( i=0; i<$required_balances_count; i++ ))
+            do
+                # check each required balance in series
+                required_balance=$( echo "$required_balances" | jq -r ".[$i]" )
+                required_denom=$( echo "$required_balance" | jq -r '.denom' )
+                required_amount=$( echo "$required_balance" | jq -r '.amount' )
+                user_amount=$( echo "$balances" | jq -r '.balances[] | select(.denom == "'$required_denom'") .amount' )
+                if [ -z "$user_amount" ] || [ "$user_amount" -lt "$required_amount" ]
+                then
+                    echo "funding error: user requires ${required_amount}${required_denom} but has ${user_amount:-"no "}${required_denom}" > /dev/stderr
+                    exit 1
+                fi
+            done
             echo "funding: user $person is funded!" > /dev/stderr
             echo "$balances"
             return 0
         else
-            echo "funding: user $person has no tokens, waiting for funds (tried $i times)..." > /dev/stderr
+            echo "funding error: user $person has no tokens, waiting for funds (tried $i times)..." > /dev/stderr
             sleep 3
         fi
     done
-    echo "funding error: user $person has no tokens, waited $try_count times with no response" > /dev/stderr
+    echo "funding error: user $person has no tokens, did you include a FAUCET_MNEMONIC with enough tokens?" > /dev/stderr
     exit 1
 }
 

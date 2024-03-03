@@ -61,9 +61,12 @@ services:
       - ON_EXIT_WITHDRAW_POOLS=${ON_EXIT_WITHDRAW_POOLS:-}
       - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-2}
       - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
-      # faucet mnemonics should be set with specific MNEMONIC/S:
+      # optional faucet mnemonic should be set with specific FAUCET_MNEMONIC:
+      - FAUCET_MNEMONIC=${FAUCET_MNEMONIC}
+      # optional bot mnemonics can be set using BOT_MNEMONIC/S or MNEMONIC/S:
       # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
-      - FAUCET_MNEMONIC=${FAUCET_MNEMONIC:-$MNEMONIC}
+      - MNEMONICS=${MNEMONICS:-$MNEMONIC}
+      - BOT_MNEMONICS=${BOT_MNEMONICS:-$BOT_MNEMONIC}
       # allow passing through a TOKEN_CONFIG object, defaulting to TOKEN_CONFIG_DEFAULT if not found
       - TOKEN_CONFIG=${TOKEN_CONFIG}
       # use (from default local node test wallets) up to about 10,000,000 (display) tokens in each pool
