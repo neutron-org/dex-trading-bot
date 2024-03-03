@@ -16,7 +16,7 @@ address="$( neutrond keys show $user -a )"
 # withdraw the users pools if asked for
 if [ ! -z "$ON_EXIT_WITHDRAW_POOLS" ]
 then
-    echo "will withdraw pools before exiting"
+    echo "on exit withdrawal: will withdraw pools before exiting"
     # get all user's dex deposits
     deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
     if [ "$( echo "$deposits" | jq -r '.deposits | length' )" ]
@@ -76,6 +76,7 @@ then
             fi
         done
     fi
+    echo "on exit withdrawal: done withdrawing pools"
 fi
 
 # check if user should refund the optional faucet
@@ -83,6 +84,7 @@ fi
 funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet || echo "" )
 if [ ! -z "$funder" ]
 then
+    echo "on exit refund: will find balances to refund"
     # get all balances
     balances=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/cosmos/bank/v1beta1/balances/$address" "balances" )
 
@@ -104,6 +106,7 @@ then
     # return funds only if there are amounts to return
     if [ ! -z "$amounts" ]
     then
+        echo "on exit refund: will refund faucet"
         # send tokens back to the funder
         response=$(
             neutrond tx bank send \
