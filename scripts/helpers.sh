@@ -396,7 +396,7 @@ getAllItemsOfPaginatedAPIList() {
 
     # output the merged list of items and a merged pagination attributes
     # this should make the output the same format as the REST API output
-    echo "${results_paginated[@]}" | jq -s -r "
+    echo "${results_paginated[@]}" | jq -s -r --compact-output "
         {
             $list_key: map(.$list_key) | flatten,
             pagination: (.[-1].pagination * { total: .[0].pagination.total }),
