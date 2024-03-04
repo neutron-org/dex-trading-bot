@@ -138,12 +138,13 @@ getFaucetWallet() {
         fi
         i=$(( i+1 ))
     done
-    if [ "${#mnemonics_array[@]}" -gt 0 ]
+
+    # pick the mnenomic to use out of the valid array
+    bot_number="$( getBotNumber "$docker_env" )"
+    bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
+    mnemonic=$(echo "${mnemonics_array[$bot_index]}")
+    if [ ! -z "$mnemonic" ]
     then
-        # pick the mnenomic to use out of the valid array
-        bot_number="$( getBotNumber )"
-        bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
-        mnemonic=$(echo "${mnemonics_array[$bot_index]}")
         # add the faucet account
         person="faucet"
         echo "$mnemonic" | neutrond keys add $person --recover > /dev/null
