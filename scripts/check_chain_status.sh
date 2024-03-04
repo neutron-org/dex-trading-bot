@@ -13,8 +13,8 @@ neutrond config keyring-backend test
 echo "CHAIN_ID: $CHAIN_ID"
 echo "NODE: $RPC_ADDRESS"
 
-# check docker connection status for daemon commands
-echo "Docker proxy call test: neutrond version $( neutrond version )"
+# check binary version status for daemon commands
+echo "neutrond version: $( neutrond version )"
 if [[ $? -ne 0 ]]; then
     echo "Cannot send neutrond commands to Neutron testnet"
     exit 1
