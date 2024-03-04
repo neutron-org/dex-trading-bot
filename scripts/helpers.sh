@@ -10,25 +10,44 @@ createAndFundUser() {
     tokens=$1
     # create person name
     person=$(openssl rand -hex 12)
+    # stagger the creationi of wallets on chain to avoid race conditions and "out of sequence" issues here:
+    BOT_RAMPING_DELAY="${BOT_RAMPING_DELAY:-5}"
+    # enforce a minimum delay, a safe delay is at least one block space in seconds (which may be hard to predict)
+    # a 6 second delay was needed to run more than 40 bots reliably
+    BOT_RAMPING_DELAY=$(( $BOT_RAMPING_DELAY > 3 ? $BOT_RAMPING_DELAY : 3 ))
+    docker_service_number=$( curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json | jq -r '.Name | split("-") | last' )
+    sleep $(( $docker_service_number > 0 ? ($docker_service_number -1) * $BOT_RAMPING_DELAY : 0 ))
+    echo "funding new user: $person with tokens $tokens" > /dev/stderr
     # create person's new account (with a random name and set passphrase)
     # the --no-backup flag only prevents output of the new key to the terminal
-    neutrond keys add $person --no-backup <<< $'asdfasdf\nn' >/dev/null
-    # send funds from frugal faucet friend (Fred)
-    tx_hash=$(
+    neutrond keys add $person --no-backup > /dev/stderr
+    # send funds from frugal faucet friend (one of 3 denomwallet accounts)
+    faucet="demowallet$(( $RANDOM % 3 + 1 ))"
+    response=$(
         neutrond tx bank send \
-            $( neutrond keys show fred --output json | jq -r .address ) \
-            $( neutrond keys show $person --output json | jq -r .address ) \
+            $( neutrond keys show $faucet -a ) \
+            $( neutrond keys show $person -a ) \
             $tokens \
             --broadcast-mode sync \
             --output json \
+            --gas auto \
+            --gas-adjustment $GAS_ADJUSTMENT \
+            --gas-prices $GAS_PRICES \
             --yes \
-            | jq -r '.txhash'
     )
-    # get tx result for msg
-    tx_result=$(bash ./scripts/test_helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash")
+    if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+    then
+        tx_hash=$( echo $response | jq -r '.txhash' )
+        # get tx result for msg
+        tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
 
-    # return only person name for test usage
-    echo "$person"
+        echo "funded new user: $person with tokens $tokens" > /dev/stderr
+
+        # return only person name for test usage
+        echo "$person"
+    else
+        echo "funding new user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
+    fi
 }
 
 throwOnTxError() {

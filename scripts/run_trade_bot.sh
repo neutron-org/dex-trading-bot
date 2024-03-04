@@ -10,8 +10,6 @@ neutrond() {
 # set which node we will talk to
 CHAIN_ID="${CHAIN_ID:-$(neutrond config chain-id)}"
 RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
-GAS_ADJUSTMENT="${GAS_ADJUSTMENT:-"2"}"
-GAS_PRICES="${GAS_PRICES:-"0.0025untrn"}"
 
 echo "CHAIN_ID: $CHAIN_ID"
 echo "NODE: $RPC_ADDRESS"
@@ -22,14 +20,14 @@ if [[ $? -ne 0 ]]; then
     echo "Cannot send neutrond commands to Neutron testnet"
     exit 1
 fi
-# set daemon calls to read test keys
-neutrond config keyring-backend test
 
 # check that NODE and CHAIN_ID details are correct
 bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
 
 # define the person to trade with as the "trader" account
-person="demowallet1"
+tokens=100000000000
+person=$( bash $SCRIPTPATH/helpers.sh createAndFundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
+address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args
 count=100; # should be divisible by 4
@@ -67,7 +65,7 @@ indexes1=()
 amounts0=()
 amounts1=()
 fees=()
-amount=1000000000 # use a base billion tokens, assume coins have 6 decimal places
+amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will make $count/4 pools)
 for (( i=0; i<$count/4; i++ ))
 do
   index=$(( $RANDOM % $max_tick_index ))
@@ -89,7 +87,7 @@ do
   # apply an amount to all tick indexes specified
   neutrond tx dex deposit \
     `# receiver` \
-    "$(neutrond keys show "$person" --output json | jq -r .address)" \
+    $address \
     `# token-a` \
     $token0 \
     `# token-b` \
@@ -179,7 +177,7 @@ do
       response="$(
         neutrond tx dex place-limit-order \
         `# receiver` \
-        "$(neutrond keys show "$person" --output json | jq -r .address)" \
+        $address \
         `# token in` \
         $token1 \
         `# token out` \
@@ -219,7 +217,7 @@ do
         response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
-          "$(neutrond keys show "$person" --output json | jq -r .address)" \
+          $address \
           `# token in` \
           $token0 \
           `# token out` \
@@ -259,7 +257,7 @@ do
     echo "making deposit: '$token0' + '$token1'"
     neutrond tx dex deposit \
       `# receiver` \
-      "$(neutrond keys show "$person" --output json | jq -r .address)" \
+      $address \
       `# token-a` \
       $token0 \
       `# token-b` \
@@ -306,7 +304,7 @@ do
       echo "making withdrawal: '$token0' + '$token1'"
       neutrond tx dex withdrawal \
         `# receiver` \
-        "$(neutrond keys show "$person" --output json | jq -r .address)" \
+        $address \
         `# token-a` \
         $token0 \
         `# token-b` \
