@@ -1,0 +1,17 @@
+# ignore default nested dependencies storage
+repos/
+
+# ignore cosmopark files from https://github.com/neutron-org/neutron-integration-tests/blob/main/.gitignore
+keystore.db
+contracts/artifacts/
+contracts/*.wasm
+
+# IDEs
+*.iml
+.idea
+.DS_Store
+*_action.json
+.vscode
+
+write-file-atomic*
+junit.xml
