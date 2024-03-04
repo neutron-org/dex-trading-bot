@@ -131,7 +131,11 @@ getFaucetWallet() {
     i=1
     while mnemonic=$(echo "$MNEMONICS" | cut -d\; -f$i ); [ -n "$mnemonic" ]
     do
-        mnemonics_array+=( "$mnemonic" )
+        # do not include duplicates
+        if [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
+        then
+            mnemonics_array+=( "$mnemonic" )
+        fi
         i=$(( i+1 ))
     done
     if [ "${#mnemonics_array[@]}" -gt 0 ]
