@@ -214,10 +214,16 @@ getBotStartTime() {
     fi
 }
 getBotEndTime() {
-    bot_number=${1:-"$( getBotNumber )"}
+    minimum_duration=${1:-"0"}
+    bot_number=${2:-"$( getBotNumber )"}
     TRADE_DURATION_SECONDS="${TRADE_DURATION_SECONDS:-0}"
     if [ $TRADE_DURATION_SECONDS -gt 0 ]
     then
+        # make trade duration at least one trade long
+        if [ "$TRADE_DURATION_SECONDS" -lt "$minimum_duration" ]
+        then
+            TRADE_DURATION_SECONDS="$minimum_duration"
+        fi
         start_time=$( getBotStartTime $bot_number )
         echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
     fi

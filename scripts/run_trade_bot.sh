@@ -95,17 +95,21 @@ two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
 sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
 
+TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
+
 # add function to check when the script should finish
-end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime )
+end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime "$TRADE_FREQUENCY_SECONDS" )
 function check_duration {
   extra_time="${1:-0}"
-  if [ ! -z $end_epoch ] && [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+  if [ ! -z $end_epoch ]
   then
-    echo "duration reached";
+    echo "duration check: $(( $end_epoch - $EPOCHSECONDS )) seconds left to go" > /dev/stderr
+    if [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+    then
+      echo "duration reached";
+    fi
   fi
 }
-
-TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 
 # respond to price changes forever
 while true
