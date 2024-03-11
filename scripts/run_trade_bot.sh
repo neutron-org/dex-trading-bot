@@ -123,7 +123,7 @@ do
     break
   fi
 
-  echo "... loop will delay for: $delay"
+  echo "... loop will delay for: $delay seconds"
   sleep $delay
   echo "loop: starting at $EPOCHSECONDS"
 
