@@ -42,7 +42,7 @@ then
             reserves=$( echo "$token_pair_deposits" | jq -r 'map(.shares_owned) | join(",")' )
 
             echo "making withdrawal: '$token0' + '$token1'"
-            response=$(
+            tx_response=$(
                 neutrond tx dex withdrawal \
                     `# receiver` \
                     $address \
@@ -59,21 +59,11 @@ then
                     `# options` \
                     --from $user --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
             )
-            if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-            then
-                tx_hash=$( echo $response | jq -r '.txhash' )
-                # get tx result for msg
-                tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-                if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
-                then
-                    ids=$( echo "$token_pair_deposits" | jq -r 'map([.center_tick_index, .fee] | join("/")) | join(",")' )
-                    echo "withdrew: ticks $ids"
-                else
-                    echo "withdrawing error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
-                fi
-            else
-                echo "withdrawing error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
-            fi
+            tx_result="$(
+                bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" \
+                "withdrew: ticks $ids" \
+                "withdrawing error: for ticks $ids"
+            )"
         done
     fi
     echo "on exit withdrawal: done withdrawing pools"
@@ -130,7 +120,7 @@ then
         refund_amounts=$( echo "\"${refund_amounts_array[@]}\"" | jq -r 'split(" ") | join(",")' )
         echo "on exit refund: will refund faucet: $refund_amounts"
         # send tokens back to the funder
-        response=$(
+        tx_response=$(
             neutrond tx bank send \
                 "$( neutrond keys show $user -a )" \
                 "$( neutrond keys show $funder -a )" \
@@ -142,20 +132,11 @@ then
                 --gas-prices $GAS_PRICES \
                 --yes
         )
-        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-        then
-            tx_hash=$( echo $response | jq -r '.txhash' )
-            # get tx result for msg
-            tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-            if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
-            then
-                echo "refunded users: $funder with $refund_amounts from $user"
-            else
-                echo "refunding user error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
-            fi
-        else
-            echo "refunding user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
-        fi
+        tx_result="$(
+            bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" \
+            "refunded users: $funder with $refund_amounts from $user" \
+            "refunding user error: for $funder with $refund_amounts from $user"
+        )"
     elif [ ! -z "$funder" ]
     then
         echo "refunding user warning: $user has no tokens to refund to $funder"

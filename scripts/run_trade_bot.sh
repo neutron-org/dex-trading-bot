@@ -186,7 +186,8 @@ do
     then
       echo "making deposit: initial ticks for $token0 and $token1"
       # apply half of the available tokens to all tick indexes specified
-      neutrond tx dex deposit \
+      tx_response="$(
+        neutrond tx dex deposit \
         `# receiver` \
         $address \
         `# token-a` \
@@ -216,11 +217,9 @@ do
         `# disable_autoswap` \
         "$(repeat_with_comma "false" "$tick_count")" \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-        | jq -r '.txhash' \
-        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
-        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+      )"
+      tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: initial $tick_count seed liquidity ticks" )"
 
       # commit the remainder amount of tokens to our token store
       tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
@@ -250,7 +249,7 @@ do
       trade_amount="$( neutrond query bank balances $address --denom $token1 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
       if [ "$trade_amount" -gt "0" ]
       then
-        response="$(
+        tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
           $address \
@@ -268,17 +267,7 @@ do
           `# options` \
           --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
         )"
-        # check for bad Tx submissions
-        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-        then
-          echo $response \
-            | jq -r '.txhash' \
-            | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-            | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-            | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
-        else
-          echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
-        fi
+        tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
         echo "skipping place-limit-order: '$token1' -> '$token0': not enough funds"
       fi
@@ -295,7 +284,7 @@ do
       trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
       if [ "$trade_amount" -gt "0" ]
       then
-        response="$(
+        tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
           $address \
@@ -313,17 +302,7 @@ do
           `# options` \
           --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
         )"
-        # check for bad Tx submissions
-        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-        then
-          echo $response \
-            | jq -r '.txhash' \
-            | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-            | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-            | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
-        else
-          echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
-        fi
+        tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
         echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
       fi
@@ -367,7 +346,8 @@ do
     # rebalance: deposit ticks on one side to make up for the ticks that we withdraw from the other side
     # determine new indexes close to the current price (within deposit accuracy, but not within swap accuracy)
     echo "making deposit: '$token0' + '$token1'"
-    neutrond tx dex deposit \
+    tx_response="$(
+      neutrond tx dex deposit \
       `# receiver` \
       $address \
       `# token-a` \
@@ -397,11 +377,9 @@ do
       `# disable_autoswap` \
       "$(repeat_with_comma "false" "$excess_user_deposits_count")" \
       `# options` \
-      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-      | jq -r '.txhash' \
-      | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-      | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-      | xargs -I{} echo "{} deposited: new close-to-price ticks ($token1_excess_user_deposits_count, $token0_excess_user_deposits_count)"
+      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+    )"
+    tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: new close-to-price ticks ($token1_excess_user_deposits_count, $token0_excess_user_deposits_count)" )"
 
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
@@ -435,7 +413,8 @@ do
       fees=$( echo "$user_deposits_to_withdraw" | jq -r '.[] | .fee' )
 
       echo "making withdrawal: '$token0' + '$token1'"
-      neutrond tx dex withdrawal \
+      tx_response="$(
+        neutrond tx dex withdrawal \
         `# receiver` \
         $address \
         `# token-a` \
@@ -449,11 +428,9 @@ do
         `# list of fees` \
         "$( join_with_comma $fees )" \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-        | jq -r '.txhash' \
-        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} withdrew:  end ticks ($user_deposits_to_withdraw_count) $indexes"
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+      )"
+      tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "withdrew:  end ticks ($user_deposits_to_withdraw_count) $indexes" )"
     fi
 
   done

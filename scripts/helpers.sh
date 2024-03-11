@@ -446,20 +446,58 @@ throwOnTxError() {
 }
 
 waitForTxResult() {
-    api=$1
-    hash=$2
-    echo "making request: for result of tx hash $api/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
-    echo "$(
-      curl \
-      --connect-timeout 10 \
-      --fail \
-      --retry 30 \
-      --retry-connrefused \
-      --retry-max-time 30 \
-      --retry-delay 1 \
-      --retry-all-errors \
-      -s $api/cosmos/tx/v1beta1/txs/$hash
-    )"
+    tx_response="$1"
+    on_success_log="$2"
+    on_error_log="$3"
+    # check that the request was a success
+    code="$( echo "$tx_response" | jq -r '.code // 1' )"
+    if [ "$code" -eq "0" ]
+    then
+        # get hash from response
+        hash="$( echo "$tx_response" | jq -r '.txhash' )"
+        # log start
+        echo "creating request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
+        # we use curl instead of neutrond to take advangtage of simple curl retry settings
+        result="$(
+            curl \
+            --connect-timeout 10 \
+            --fail \
+            --retry 30 \
+            --retry-connrefused \
+            --retry-max-time 30 \
+            --retry-delay 1 \
+            --retry-all-errors \
+            -s $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash
+        )"
+        tx_response="$( echo "$result" | jq -r '.tx_response' )"
+        code="$( echo "$tx_response" | jq -r '.code // 0' )"
+        log="finished request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash"
+    else
+        log="finished request: tx was not processed"
+    fi
+    # log end
+    # add standard parts
+    log+=$'\n'
+    log+="$( echo "$tx_response" | jq -r '"- [ tx code: \(.code) ] [ tx hash: \(.txhash // .tx_hash // "unknown hash") ]"' )"
+    if [ "$code" -ne "0" ]
+    then
+        log+=' '
+        log+="$( jq -r '"[ tx log: \(.raw_log) ]"' )"
+    fi
+    # add log descriptions if defined
+    if [ "$code" -eq "0" ] && [ ! -z "$on_success_log" ]
+    then
+        log+=$'\n'
+        log+="$on_success_log"
+    elif [ "$code" -ne "0" ] && [ ! -z "$on_error_log" ]
+    then
+        log+=$'\n'
+        log+="$on_error_log"
+    fi
+    # echo combined string
+    echo "$log" > /dev/stderr
+    # return the JSON result
+    echo "$tx_response"
 }
 
 
