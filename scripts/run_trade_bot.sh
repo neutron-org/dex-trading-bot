@@ -243,6 +243,7 @@ do
       | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker"
     )
     # use bc for aribtrary precision math comparison (check for null because non-zero result evals true)
+    echo "check: place-limit-order: token0 side: is $first_tick0_price_ratio > $goal_price_ratio ?"
     if [ "$first_tick0_price_ratio" != "null" ] && (( $( bc <<< "$first_tick0_price_ratio > $goal_price_ratio" ) ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
@@ -271,6 +272,8 @@ do
       else
         echo "skipping place-limit-order: '$token1' -> '$token0': not enough funds"
       fi
+    else
+      echo "ignore place-limit-order: '$token1' -> '$token0': no liquidity to arbitrage"
     fi
     # find if there are tokens to swap in the other direction
     echo "making query: of current '$token1' ticks"
@@ -278,6 +281,7 @@ do
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
       | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
     )
+    echo "check: place-limit-order: token1 side: is $first_tick1_price_ratio < $goal_price_ratio ?"
     if [ "$first_tick1_price_ratio" != "null" ] && (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
     then
       echo "making place-limit-order: '$token0' -> '$token1'"
@@ -306,6 +310,8 @@ do
       else
         echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
       fi
+    else
+      echo "ignore place-limit-order: '$token0' -> '$token1': no liquidity to arbitrage"
     fi
 
     # check if duration has been reached
