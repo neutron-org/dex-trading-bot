@@ -240,10 +240,10 @@ do
     echo "making query: of current '$token0' ticks"
     first_tick0_price_ratio=$(
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 1 \
-      | jq ".tick_liquidity[0].pool_reserves.key.price_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker"
     )
-    # use bc for aribtrary precision math comparison (non-zero result evals true)
-    if (( $( bc <<< "$first_tick0_price_ratio > $goal_price_ratio" ) ))
+    # use bc for aribtrary precision math comparison (check for null because non-zero result evals true)
+    if [ "$first_tick0_price_ratio" != "null" ] && (( $( bc <<< "$first_tick0_price_ratio > $goal_price_ratio" ) ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
       trade_amount="$( neutrond query bank balances $address --denom $token1 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
@@ -276,9 +276,9 @@ do
     echo "making query: of current '$token1' ticks"
     first_tick1_price_ratio=$(
       neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
-      | jq ".tick_liquidity[0].pool_reserves.key.price_opposite_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
     )
-    if (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
+    if [ "$first_tick1_price_ratio" != "null" ] && (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
     then
       echo "making place-limit-order: '$token0' -> '$token1'"
       trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
