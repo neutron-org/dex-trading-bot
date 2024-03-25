@@ -4,10 +4,18 @@ set -e
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
 
 # wait for chain to be ready
-bash $SCRIPTPATH/check_chain_status.sh
+token_config_array=$( bash $SCRIPTPATH/helpers.sh getTokenConfigArray )
 
-# define the amount of funds to use
-tokens=100000000000
+# check that token config is set, if it is not set, there is nothing to do
+token_config_length=$( echo ${token_config_array:-"[]"} | jq -r 'length' )
+if [ ! "${token_config_length:-0}" -gt "0" ]
+then
+    echo "incomplete TOKEN_CONFIG: at least one valid pair is required to trade"
+    exit 1
+fi;
+
+# wait for chain to be ready
+bash $SCRIPTPATH/check_chain_status.sh
 
 docker_env="$( bash $SCRIPTPATH/helpers.sh getDockerEnv )"
 bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
@@ -15,9 +23,6 @@ bot_number="$( bash $SCRIPTPATH/helpers.sh getBotNumber "$docker_env" )"
 # fund all bots from bot 1
 if [ "$bot_number" -eq "1" ]
 then
-    # get funding user
-    funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet "$docker_env" )
-
     # gather the users of each bot container, one by one
     docker_envs="$( bash $SCRIPTPATH/helpers.sh getDockerEnvs "$docker_env" )"
     docker_envs_count="$( echo "$docker_envs" | jq -r 'length' )"
@@ -31,8 +36,17 @@ then
         user_addresses_array+=( "$( neutrond keys show $user -a )" )
     done
 
+    # get funding user last: will throw an error if mnenomic has already been used
+    funder=$( bash $SCRIPTPATH/helpers.sh getFaucetWallet )
+fi
+
+# fund users from optional faucet account if set
+if [ ! -z "$funder" ] && [ "${#user_addresses_array[@]}" -gt 0 ]
+then
+    # find the amount of tokens to given all accounts
+    tokens=$( bash $SCRIPTPATH/helpers.sh getTokenConfigTokensRequired )
+
     # multi-send to multiple users ($tokens amount is sent to each user)
-    tokens="${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc"
     send_or_multi_send="send"
     if [ "${#user_addresses_array[@]}" -gt 1 ]
     then

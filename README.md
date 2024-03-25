@@ -44,12 +44,18 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
     - `BOT_RAMPING_DELAY`: seconds between starting each bot
     - `TRADE_DURATION_SECONDS`: how long trades should occur for
     - `TRADE_FREQUENCY_SECONDS`: how many seconds to delay between trades on a bot
+    - `ON_EXIT_WITHDRAW_POOLS`: if set, withdraw all user's Dex pools after TRADE_DURATION_SECONDS
     - `GAS_ADJUSTMENT`: how much more than the base estimated gas price to pay for each tx
     - `GAS_PRICES`: calculate how many fees to pay from this fraction of gas
-    - `MNEMONICS`: the mnemonics for the account(s) that tokens will be used from (required)
+    - `TOKEN_CONFIG`: a token pairs configuration (JSON) object for eg. token amounts to trade
+        - see [helpers.sh](https://github.com/neutron-org/dex-trading-bot/blob/e0f6f7128182b9dce2a54abbee279219ae8dc9fc/scripts/helpers.sh#L41-L59) for more setting details
+    - mnemonics:
+        - `FAUCET_MNEMONIC` (optional): the mnemonic of the account that will fund generated bots
+        - `BOT_MNEMONIC/S` or `MNEMONIC/S` (optional): the mnemonics for self-funded bot account(s)
+        - at least one of `FAUCET_MNEMONIC` or `BOT_/MNEMONIC/S` should be provided
         - with a local chain you can use `DEMO_MNEMONIC`s from the neutron networks/init.sh file
 
-eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450`
+eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450 MNEMONIC=...`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.
 
 # Troubleshooting
