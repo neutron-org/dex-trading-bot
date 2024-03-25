@@ -1,53 +1,186 @@
 #!/bin/bash
 set -e
 
-# alias neutrond to a specific Docker neutrond
-neutrond() {
-    docker exec $NEUTROND_NODE neutrond --home /opt/neutron/data/$CHAIN_ID "$@"
+getDockerEnv() {
+    # get this Docker container env info
+    curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
+}
+getDockerEnvs() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    docker_image=$( echo "$docker_env" | jq -r '.Config.Image' )
+    docker inspect $( docker ps --filter "ancestor=$docker_image" -q )
 }
 
-createAndFundUser() {
-    tokens=$1
-    # create person name
-    person=$(openssl rand -hex 12)
-    # stagger the creationi of wallets on chain to avoid race conditions and "out of sequence" issues here:
-    BOT_RAMPING_DELAY="${BOT_RAMPING_DELAY:-5}"
-    # enforce a minimum delay, a safe delay is at least one block space in seconds (which may be hard to predict)
-    # a 6 second delay was needed to run more than 40 bots reliably
-    BOT_RAMPING_DELAY=$(( $BOT_RAMPING_DELAY > 3 ? $BOT_RAMPING_DELAY : 3 ))
-    docker_service_number=$( curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json | jq -r '.Name | split("-") | last' )
-    sleep $(( $docker_service_number > 0 ? ($docker_service_number -1) * $BOT_RAMPING_DELAY : 0 ))
-    echo "funding new user: $person with tokens $tokens" > /dev/stderr
-    # create person's new account (with a random name and set passphrase)
-    # the --no-backup flag only prevents output of the new key to the terminal
-    neutrond keys add $person --no-backup > /dev/stderr
-    # send funds from frugal faucet friend (one of 3 denomwallet accounts)
-    faucet="demowallet$(( $RANDOM % 3 + 1 ))"
-    response=$(
-        neutrond tx bank send \
-            $( neutrond keys show $faucet -a ) \
-            $( neutrond keys show $person -a ) \
-            $tokens \
-            --broadcast-mode sync \
-            --output json \
-            --gas auto \
-            --gas-adjustment $GAS_ADJUSTMENT \
-            --gas-prices $GAS_PRICES \
-            --yes \
+getBotNumber() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    docker_service_number=$(
+        echo "$docker_env" | jq -r '.Config.Labels["com.docker.compose.container-number"]'
     )
-    if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
+    if [ "$docker_service_number" -gt "0" ]
     then
-        tx_hash=$( echo $response | jq -r '.txhash' )
-        # get tx result for msg
-        tx_result=$(waitForTxResult "$API_ADDRESS" "$tx_hash")
-
-        echo "funded new user: $person with tokens $tokens" > /dev/stderr
-
-        # return only person name for test usage
-        echo "$person"
-    else
-        echo "funding new user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
+        echo "$docker_service_number";
     fi
+}
+getDockerEnvOfBotNumber() {
+    # ask for a specific bot number
+    bot_number=$1
+    # get this Docker container env info
+    docker_env="$( getDockerEnv )"
+    # return asked for bot env
+    if [ "$bot_number" -gt 0 ] && [ "$( getBotNumber "$docker_env" )" -ne "$bot_number" ]
+    then
+        # return the matching bot number from the list of all bot Docker envs
+        docker_envs=$( getDockerEnvs "$docker_env" )
+        echo "$docker_envs" | jq -r ".[] | select(.Config.Labels[\"com.docker.compose.container-number\"] == \"$bot_number\")"
+    else
+        echo "$docker_env"
+    fi
+}
+
+getBotStartTime() {
+    bot_number=${1:-"$( getBotNumber )"}
+    # source the start time from the first bot
+    if [ "$bot_number" -eq "1" ]
+    then
+        first_bot_start_time="$EPOCHSECONDS"
+        echo "$first_bot_start_time"
+        # write start time to file for other bots to query
+        echo "$first_bot_start_time" > start_time
+    else
+        first_bot_container="$( echo "$( getDockerEnvOfBotNumber 1 )" | jq -r '.Config.Hostname' )"
+        while [ -z "$first_bot_start_time" ]
+        do
+            first_bot_start_time=$( docker exec $first_bot_container cat start_time 2>/dev/null || true )
+            if [ -z "$first_bot_start_time" ]
+            then
+                echo "waiting for first bot to start..." > /dev/stderr
+                sleep 1
+            fi
+        done
+        echo "waited. found: $first_bot_start_time" > /dev/stderr
+        echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $first_bot_start_time ))"
+    fi
+}
+getBotEndTime() {
+    bot_number=${1:-"$( getBotNumber )"}
+    TRADE_DURATION_SECONDS="${TRADE_DURATION_SECONDS:-0}"
+    if [ $TRADE_DURATION_SECONDS -gt 0 ]
+    then
+        start_time=$( getBotStartTime $bot_number )
+        echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
+    fi
+}
+waitForAllBotsToSynchronizeToStage() {
+    stage_name="$1"
+    wait_time="${2:-3}"
+    docker_envs="$( getDockerEnvs )"
+    docker_envs_count="$( echo "$docker_envs" | jq -r 'length' )"
+    filename="${stage_name}_time"
+    echo "bot sync: wait for stage $stage_name ..." > /dev/stderr
+    if [ "$docker_envs_count" -gt 1 ]
+    then
+        # write time to file for other bots to query
+        echo "$EPOCHSECONDS" > $filename
+        # query all containers for their time, one by one
+        for (( i=0; i<$docker_envs_count; i++ ))
+        do
+            docker_env="$( echo "$docker_envs" | jq ".[$i]" )"
+            nth_bot_container="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
+            nth_bot_end_time=""
+            while [ -z "$nth_bot_end_time" ]
+            do
+                nth_bot_end_time=$( docker exec $nth_bot_container cat $filename 2>/dev/null || true )
+                if [ -z "$nth_bot_end_time" ]
+                then
+                    sleep "$wait_time"
+                    echo "bot sync: wait for stage $stage_name, still waiting ..." > /dev/stderr
+                fi
+            done
+        done
+        echo "bot sync: synced to stage $stage_name" > /dev/stderr
+    fi
+}
+
+createMnemonic() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    # create mnenomic from container Env (without line breaks)
+    neutrond keys mnemonic --keyring-backend test --unsafe-entropy <<EOF
+"$( echo "$docker_env" | jq '.Config' | tr -d '\r' | tr '\n' ' ' )"
+y
+EOF
+}
+
+createUser() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    # create mnenomic from container Env (without line breaks)
+    mnemonic=$( createMnemonic "$docker_env" )
+    echo "mnemonic: $mnemonic" > /dev/stderr
+    # add the new account under hostname
+    person="$( echo "$docker_env" | jq -r '.Config.Hostname' )"
+    echo "creating user: $person" > /dev/stderr
+    # ignore duplicate user errors
+    echo "$mnemonic" | neutrond keys add $person --recover 2>/dev/null > /dev/stderr
+    echo "$person";
+}
+
+getFaucetWallet() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    # if mnenomics are defined then take wallet from a given mnemonic
+    MNEMONICS="${MNEMONICS:-"$MNEMONIC"};"
+    mnemonics_array=()
+    i=1
+    # accept line breaks, tabs, semicolons, commas, and multiple spaces as delimiters
+    mnemonics_json=$( echo "\"$MNEMONICS\"" | tr '\r\n;,' '  ' | jq -r 'split("  +"; "g")' )
+    mnemonics_json_count=$( echo "$mnemonics_json" | jq -r 'length' )
+    for (( i=0; i<$mnemonics_json_count; i++ ))
+    do
+        mnemonic=$( echo "$mnemonics_json" | jq -r ".[$i]"  )
+        # do not include duplicates
+        if [ ! -z "$mnemonic" ] && [[ ! " ${mnemonics_array} " =~ " ${mnemonic} " ]]
+        then
+            mnemonics_array+=( "$mnemonic" )
+        fi
+    done
+
+    # pick the mnenomic to use out of the mnemonics array
+    bot_number="$( getBotNumber "$docker_env" )"
+    bot_index=$(( ($bot_number - 1) % ${#mnemonics_array[@]} ))
+    mnemonic=$(echo "${mnemonics_array[$bot_index]}")
+    if [ ! -z "$mnemonic" ]
+    then
+        # add the faucet account
+        person="faucet"
+        echo "$mnemonic" | neutrond keys add $person --recover > /dev/null
+        echo "$person";
+    else
+        echo "at least one mnemonic should be provided in MNEMONIC/MNEMONICS"
+        exit 1
+    fi
+}
+
+getFundedUser() {
+    docker_env="${1:-"$( getDockerEnv )"}"
+    # add the new account under hostname
+    person="$( createUser "$docker_env" )"
+    address="$( neutrond keys show $person -a )"
+    # wait for the user to be funded
+    try_count=20
+    for (( i=1; i<=$try_count; i++ ))
+    do
+        balances=$( neutrond query bank balances "$address" --output json )
+        token_count=$( echo "$balances" | jq -r '.balances | length' )
+        if [ "$token_count" -gt 0 ]
+        then
+            echo "funding: user $person is funded!" > /dev/stderr
+            echo "$person"
+            return 0
+        else
+            echo "funding: user $person has no tokens, waiting for funds (tried $i times)..." > /dev/stderr
+            sleep 3
+        fi
+    done
+    echo "funding error: user $person has no tokens, waited $try_count times with no response" > /dev/stderr
+    exit 1
 }
 
 throwOnTxError() {

@@ -46,6 +46,8 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
     - `TRADE_FREQUENCY_SECONDS`: how many seconds to delay between trades on a bot
     - `GAS_ADJUSTMENT`: how much more than the base estimated gas price to pay for each tx
     - `GAS_PRICES`: calculate how many fees to pay from this fraction of gas
+    - `MNEMONICS`: the mnemonics for the account(s) that tokens will be used from (required)
+        - with a local chain you can use `DEMO_MNEMONIC`s from the neutron networks/init.sh file
 
 eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.

@@ -1,32 +1,15 @@
 #!/bin/bash
 set -e
 
-# alias neutrond to a specific Docker neutrond
+# make script path consistent
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
-neutrond() {
-  bash $SCRIPTPATH/helpers.sh neutrond "$@"
-}
 
-# set which node we will talk to
-CHAIN_ID="${CHAIN_ID:-$(neutrond config chain-id)}"
-RPC_ADDRESS="${RPC_ADDRESS:-$(neutrond config node)}"
-
-echo "CHAIN_ID: $CHAIN_ID"
-echo "NODE: $RPC_ADDRESS"
-
-# check docker connection status for daemon commands
-echo "Docker proxy call test: neutrond version $( neutrond version )"
-if [[ $? -ne 0 ]]; then
-    echo "Cannot send neutrond commands to Neutron testnet"
-    exit 1
-fi
-
-# check that NODE and CHAIN_ID details are correct
-bash $SCRIPTPATH/check_chain_status.sh $RPC_ADDRESS $CHAIN_ID
+# wait for chain to be ready
+bash $SCRIPTPATH/check_chain_status.sh
 
 # define the person to trade with as the "trader" account
 tokens=100000000000
-person=$( bash $SCRIPTPATH/helpers.sh createAndFundUser "${tokens}untrn,${tokens}uibcatom,${tokens}uibcusdc" )
+person=$( bash $SCRIPTPATH/helpers.sh getFundedUser )
 address=$( neutrond keys show "$person" -a )
 
 # add some helper functions to generate chain CLI args
@@ -60,6 +43,7 @@ token_pairs=( '["uibcusdc","untrn"]' '["uibcatom","uibcusdc"]' '["uibcatom","unt
 # create initial tick array outside of max price amplitude
 fee_options=( 1 5 20 100 )
 max_tick_index=12000
+indexes=()
 indexes0=()
 indexes1=()
 amounts0=()
@@ -69,6 +53,12 @@ amount=$(( $tokens / 1000 )) # use 0.1% of budget in each pool (will make $count
 for (( i=0; i<$count/4; i++ ))
 do
   index=$(( $RANDOM % $max_tick_index ))
+  # pick another index if this one was already used
+  while [[ " ${indexes[*]} " =~ " ${index} " ]]
+  do
+      index=$(( $RANDOM % $max_tick_index ))
+  done
+  indexes+=( $index )
   indexes0+=( $(( -$max_tick_index - $index )) -$index )
   indexes1+=( $index $(( $index + $max_tick_index )) )
   # calculate reserve amounts to add that will equal the same amount of shares
@@ -119,23 +109,36 @@ amplitude2=-2000 # in seconds
 period2=300 # in seconds
 two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 
+# delay bots as part of startup ramping process
+start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
+sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
+
+# add function to check when the script should finish
+end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime )
+function check_duration {
+  extra_time="${1:-0}"
+  if [ ! -z $end_epoch ] && [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+  then
+    echo "duration reached";
+  fi
+}
+
 TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
-max_epoch=$( [ ! -z $TRADE_DURATION_SECONDS ] && echo $(( $EPOCHSECONDS + $TRADE_DURATION_SECONDS )) || echo "" )
-max_epoch_reached=false
 
 # respond to price changes forever
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
-  DELAY=$(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
-  echo ".. will delay for: $DELAY"
-  sleep $DELAY
+  delay=$(( $TRADE_FREQUENCY_SECONDS > 0 ? $RANDOM % $TRADE_FREQUENCY_SECONDS : 0 ))
 
-  if [ ! -z $max_epoch ] && [ $max_epoch -lt $EPOCHSECONDS ]
+  # check if duration will be reached
+  if [ ! -z "$( check_duration $delay )" ]
   then
-    echo "TRADE_DURATION_SECONDS has been reached";
-    exit 0
+    break
   fi
+
+  echo ".. will delay for: $delay"
+  sleep $delay
 
   pair_index=0
   for token_pair in ${token_pairs[@]}
@@ -246,6 +249,12 @@ do
       fi
     fi
 
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
+
     # - replace the end pieces of liquidity with values closer to the current price
 
     # determine new indexes close to the current price
@@ -278,6 +287,12 @@ do
       | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
       | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
       | xargs -I{} echo "{} deposited: new close-to-price ticks $new_index0, $new_index1"
+
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
 
     # find reserves to withdraw
     echo "making query: finding '$token0', '$token1' deposits to withdraw"
@@ -326,3 +341,10 @@ do
   done
 
 done
+
+echo "TRADE_DURATION_SECONDS has been reached";
+
+# wait for all bots to finish this stage before exiting
+bash $SCRIPTPATH/helpers.sh waitForAllBotsToSynchronizeToStage trading_finished 3
+
+echo "exiting trade script"

@@ -16,9 +16,6 @@ services:
         CHAIN_DIR="$$BASE_DIR/$$CHAINID"
         sed -i -e "s/cors_allowed_origins = \[\]/cors_allowed_origins = $$CORS_ALLOWED_ORIGINS/g" "$$CHAIN_DIR/config/config.toml"
 
-        # set default keyring configuration to local test keys
-        neutrond --home "$$CHAIN_DIR" config keyring-backend test
-
         # run chain
         echo "Starting $$CHAINID..."
         neutrond start                             \
@@ -50,18 +47,22 @@ services:
       context: .
     depends_on:
       - "neutron-node"
+    entrypoint: ["/bin/bash", "./scripts/setup_entrypoint.sh"]
+    command: ["/bin/bash", "./scripts/run_trade_bot.sh"]
     deploy:
       replicas: ${BOTS:-1}
     environment:
       - BOT_RAMPING_DELAY=${BOT_RAMPING_DELAY:-3} # seconds between starting each bot
       - CHAIN_ID=${CHAIN_ID:-test-1}
-      - NEUTROND_NODE=neutron-node
       - RPC_ADDRESS=${RPC_ADDRESS:-http://neutron-node:26657}
       - API_ADDRESS=${API_ADDRESS:-http://neutron-node:1317}
       - TRADE_DURATION_SECONDS=${TRADE_DURATION_SECONDS:-}
       - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
       - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-2}
       - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
+      # faucet mnemonics should be set with specific MNEMONIC/S:
+      # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
+      - MNEMONICS=${MNEMONICS:-$MNEMONIC}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

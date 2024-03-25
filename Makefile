@@ -84,7 +84,7 @@ clean:
 # --- new docker compose network commands ---
 
 build-trade-bot:
-	@$(COMPOSE) build
+	@$(COMPOSE) build --build-arg NEUTRON_VERSION=$(NEUTRON_VERSION)
 
 start-trade-bot: build-trade-bot
 	@$(COMPOSE) up

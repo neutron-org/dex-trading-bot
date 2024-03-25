@@ -1,8 +1,24 @@
 #!/bin/bash
 set -e
 
-RPC_ADDRESS=$1
-CHAIN_ID=$2
+CHAIN_ID="${CHAIN_ID:-neutron}"
+RPC_ADDRESS="${RPC_ADDRESS}"
+
+# setup neutrond config in default config folder
+mkdir -p /root/.neutrond
+neutrond config chain-id $CHAIN_ID
+neutrond config node $RPC_ADDRESS
+neutrond config keyring-backend test
+
+echo "CHAIN_ID: $CHAIN_ID"
+echo "NODE: $RPC_ADDRESS"
+
+# check binary version status for daemon commands
+echo "neutrond version: $( neutrond version )"
+if [[ $? -ne 0 ]]; then
+    echo "Cannot send neutrond commands to Neutron testnet"
+    exit 1
+fi
 
 echo "Connecting to testnet: $RPC_ADDRESS ..."
 # check if we can get information from the testnet
