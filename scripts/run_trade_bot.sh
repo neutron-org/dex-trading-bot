@@ -218,7 +218,7 @@ do
         `# list of fees` \
         "$( get_joined_array $tick_count get_fee "$fees" )" \
         `# disable_autoswap` \
-        "$(repeat_with_comma "false" "$tick_count")" \
+        "$( repeat_with_comma "true" "$tick_count" )" \
         `# options` \
         --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
       )"
@@ -384,7 +384,7 @@ do
       `# list of fees` \
       "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
       `# disable_autoswap` \
-      "$(repeat_with_comma "false" "$excess_user_deposits_count")" \
+      "$( repeat_with_comma "true" "$excess_user_deposits_count" )" \
       `# options` \
       --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
     )"
