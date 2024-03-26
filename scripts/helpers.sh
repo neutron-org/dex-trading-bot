@@ -478,7 +478,7 @@ waitForTxResult() {
     # log end
     # add standard parts
     log+=$'\n'
-    log+="$( echo "$tx_response" | jq -r '"- [ tx code: \(.code) ] [ tx hash: \(.txhash // .tx_hash // "unknown hash") ]"' )"
+    log+="$( echo "$tx_response" | jq -r '"- [ tx code: \(.code) ] [ tx hash: \(.txhash // .tx_hash) ]"' )"
     if [ "$code" -ne "0" ]
     then
         log+=' '
