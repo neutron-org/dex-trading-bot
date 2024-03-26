@@ -482,7 +482,7 @@ waitForTxResult() {
     if [ "$code" -ne "0" ]
     then
         log+=' '
-        log+="$( jq -r '"[ tx log: \(.raw_log) ]"' )"
+        log+="$( echo "$tx_response" | jq -r '"[ tx log: \(.raw_log) ]"' )"
     fi
     # add log descriptions if defined
     if [ "$code" -eq "0" ] && [ ! -z "$on_success_log" ]
