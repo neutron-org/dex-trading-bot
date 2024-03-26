@@ -7,9 +7,17 @@ services:
         #!/bin/bash
         set -e
 
-        # initialize the chain state
-        bash /opt/neutron/network/init.sh
-        bash /opt/neutron/network/init-neutrond.sh
+        # check if data was previously saved using ./script/save_chain_data.sh
+        if [ -d "/opt/neutron/backup-data" ]
+        then
+            cp -a /opt/neutron/backup-data/. /opt/neutron/data/
+        fi
+
+        # initialize the chain state data if it not set yet
+        if [ -z "$( ls -A /opt/neutron/data )" ]; then
+          bash /opt/neutron/network/init.sh
+          bash /opt/neutron/network/init-neutrond.sh
+        fi
 
         # allow CORS requests from dev localhost origin
         BASE_DIR=/opt/neutron/data
