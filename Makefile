@@ -76,6 +76,9 @@ stop-cosmopark:
 start-neutron-node:
 	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml up neutron-node
 
+stop-neutron-node:
+	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml down neutron-node -t0 --remove-orphans -v
+
 clean:
 	@echo "Removing previous testing data"
 	-@docker volume rm neutron-testing-data
