@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   neutron-node:
-    image: neutron-node
+    image: neutron-node:${NEUTRON_IMAGE_TAG:-latest}
     command: >
       /bin/bash -c '
         #!/bin/bash

@@ -68,19 +68,19 @@ will start a persistent chain that for the first ~10min (7min+ramping) will gene
 
 You can save the current chain data of a running chain by running
 ```shell
-sh ./scripts/save_chain_data.sh "[optional description for image tag]"
+make save-neutron-node TAG_NAME="[optional tag description]"
 ```
 This will save a new Docker image tagged: `neutron-node:[description]`
 
 if the chain isn't currently running but you haven't yet cleaned out the volume
 then you can:
-- restart the chain itself using `docker compose up neutron-node`
-- run the save data script: `sh ./scripts/save_chain_data.sh`
-- remove the chain using `docker compose down neutron-node`
+- restart the chain itself using `make start-neutron-node`
+- run the save data script: `make save-neutron-node TAG_NAME="[optional tag description]"`
+- remove the chain using `make stop-neutron-node`
 
-To run the chain with this saved state you can use the commands:
-- `docker tag neutron-node:saved neutron-node:latest`
-- `docker compose up neutron-node`
+To run the chain with this saved state you can:
+- run the resume data script: `make resume-neutron-node TAG_NAME="[optional tag description]"` or
+- run the resume data script: `make start-neutron-node TAG_NAME="[tag description]"`
 
 # Troubleshooting
 
