@@ -18,7 +18,7 @@ init-neutron:
 ifeq (,$(wildcard $(REPOS_DIR)/neutron))
 	cd $(REPOS_DIR) && git clone -b $(NEUTRON_VERSION) https://github.com/neutron-org/neutron.git
 else
-	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
+	cd $(REPOS_DIR)/neutron && git fetch --tags origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
 endif
 
 init-hermes:
@@ -39,7 +39,7 @@ init-gaia:
 ifeq (,$(wildcard $(REPOS_DIR)/gaia))
 	cd $(REPOS_DIR) && git clone -b $(GAIA_VERSION) https://github.com/cosmos/gaia.git
 else
-	cd $(REPOS_DIR)/gaia && git fetch origin $(GAIA_VERSION) && git checkout $(GAIA_VERSION)
+	cd $(REPOS_DIR)/gaia && git fetch --tags origin $(GAIA_VERSION) && git checkout $(GAIA_VERSION)
 endif
 
 init-all: init-dir init-neutron init-hermes init-relayer init-gaia
