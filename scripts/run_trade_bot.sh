@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+
+# by default allow errors: if an error is thrown during the simulation
+# it should be handled here and the simulation loop can `break` to exit
+set +e
 
 # make script path consistent
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"

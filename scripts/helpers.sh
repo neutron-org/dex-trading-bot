@@ -446,7 +446,7 @@ throwOnTxError() {
 }
 
 waitForTxResult() {
-    tx_response="$1"
+    tx_response="${1:-"{}"}"
     on_success_log="$2"
     on_error_log="$3"
     # check that the request was a success
