@@ -6,7 +6,6 @@
 - make
 
 ## Get Started
-
 To run the bot, you will first need a chain to run the bot against,
 locally this should be a single dockerized neutron node
 - `make build-neutron`
@@ -16,6 +15,13 @@ To run the default setup of a single neutron-node chain and a single trading bot
 
 This composed neutron chain and trading bot network will persist until you call:
 - `make stop-trade-bot`
+
+### Changing versions
+You can run a newer version of the chain than the default in the makefile
+- `make build-neutron NEUTRON_VERSION="fix/swap-rounding"`
+- `make start-trade-bot NEUTRON_VERSION="v3.0.1"`
+In this case, the trade bots will use the v3.0.1 binary to make requests to the
+local chain running a fix branch (which is compatible with the v3.0.1 requests)
 
 ### Test runs (start+stop)
 You can test a chain and bot(s) configuration and exit with cleanup in one step using:
