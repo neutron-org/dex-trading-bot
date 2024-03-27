@@ -2,9 +2,11 @@
 
 REPOS_DIR ?= ./repos
 SETUP_DIR ?= $(REPOS_DIR)/neutron-integration-tests/setup
+DOCKER ?= docker
 COMPOSE ?= docker-compose
-NEUTRON_VERSION ?= v2.0.2
+NEUTRON_VERSION ?= v3.0.0
 GAIA_VERSION ?= v14.1.0
+NEUTRON_CONTAINER = $(shell $(DOCKER) ps --filter name=neutron-node -q)
 
 
 # --- repo init commands ---
@@ -18,7 +20,7 @@ init-neutron:
 ifeq (,$(wildcard $(REPOS_DIR)/neutron))
 	cd $(REPOS_DIR) && git clone -b $(NEUTRON_VERSION) https://github.com/neutron-org/neutron.git
 else
-	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
+	cd $(REPOS_DIR)/neutron && git fetch --tags origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
 endif
 
 init-hermes:
@@ -39,7 +41,7 @@ init-gaia:
 ifeq (,$(wildcard $(REPOS_DIR)/gaia))
 	cd $(REPOS_DIR) && git clone -b $(GAIA_VERSION) https://github.com/cosmos/gaia.git
 else
-	cd $(REPOS_DIR)/gaia && git fetch origin $(GAIA_VERSION) && git checkout $(GAIA_VERSION)
+	cd $(REPOS_DIR)/gaia && git fetch --tags origin $(GAIA_VERSION) && git checkout $(GAIA_VERSION)
 endif
 
 init-all: init-dir init-neutron init-hermes init-relayer init-gaia
@@ -73,9 +75,6 @@ start-cosmopark-no-rebuild:
 stop-cosmopark:
 	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml down -t0 --remove-orphans -v
 
-start-neutron-node:
-	@$(COMPOSE) -f $(SETUP_DIR)/docker-compose.yml up neutron-node
-
 clean:
 	@echo "Removing previous testing data"
 	-@docker volume rm neutron-testing-data
@@ -96,3 +95,27 @@ test-trade-bot: export TRADE_DURATION_SECONDS ?= 60
 test-trade-bot: stop-trade-bot build-trade-bot
 	@$(COMPOSE) up --abort-on-container-exit || true
 	$(MAKE) stop-trade-bot
+
+# --- after a simulation save/resume the created chain state with these commands ---
+
+start-neutron-node: TAG_NAME ?= "latest"
+start-neutron-node:
+	@NEUTRON_IMAGE_TAG=$(TAG_NAME) $(COMPOSE) up neutron-node
+
+stop-neutron-node:
+	@$(COMPOSE) down neutron-node -t0 --remove-orphans -v
+
+save-neutron-node: TAG_NAME ?= "saved"
+save-neutron-node:
+ifneq ($(NEUTRON_CONTAINER), undefined)
+	$(DOCKER) exec $(NEUTRON_CONTAINER) mkdir /opt/neutron/backup-data
+	$(DOCKER) exec $(NEUTRON_CONTAINER) cp -a /opt/neutron/data/. /opt/neutron/backup-data/
+	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:$(TAG_NAME)"
+	$(DOCKER) exec $(NEUTRON_CONTAINER) rm -rf /opt/neutron/backup-data
+else
+	@echo "run container first: eg. \`make start-neutron-node\`, you can remove it after with  \`make stop-neutron-node\`"
+endif
+
+resume-neutron-node: TAG_NAME ?= "saved"
+resume-neutron-node:
+	$(MAKE) start-neutron-node TAG_NAME=$(TAG_NAME)
