@@ -52,7 +52,7 @@ then
     then
         send_or_multi_send="multi-send"
     fi
-    response=$(
+    tx_response=$(
         neutrond tx bank $send_or_multi_send \
             "$( neutrond keys show $funder -a )" \
             "${user_addresses_array[@]}" \
@@ -64,18 +64,9 @@ then
             --gas-prices $GAS_PRICES \
             --yes
     )
-    if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-    then
-        tx_hash=$( echo $response | jq -r '.txhash' )
-        # get tx result for msg
-        tx_result=$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "$tx_hash" )
-        if [ "$( echo "$tx_result" | jq -r '.tx_response.code' )" -eq "0" ]
-        then
-            echo "funded users: ${user_addresses_array[@]} with tokens $tokens"
-        else
-            echo "funding user error (code: $( echo $response | jq -r '.tx_response.code' )): $( echo $response | jq -r '.tx_response.raw_log' )" > /dev/stderr
-        fi
-    else
-        echo "funding user error (code: $( echo $response | jq -r '.code' )): $( echo $response | jq -r '.raw_log' )" > /dev/stderr
-    fi
+    tx_result="$(
+        bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" \
+        "funded users: ${user_addresses_array[@]} with tokens $tokens" \
+        "funding user error: for ${user_addresses_array[@]} with tokens $tokens"
+    )"
 fi

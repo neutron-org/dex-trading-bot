@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+
+# by default allow errors: if an error is thrown during the simulation
+# it should be handled here and the simulation loop can `break` to exit
+set +e
 
 # make script path consistent
 SCRIPTPATH="$( dirname "$(readlink "$BASH_SOURCE" || echo "$BASH_SOURCE")" )"
@@ -76,6 +79,10 @@ function get_fee {
   echo "$random_value"
 }
 
+function rounded_calculation {
+  echo " $1 " | bc -l | awk '{print int($1+0.5)}'
+}
+
 # create a place to hold the tokens used state
 # we will try not to spend more tokens than are agreed to in the config ENV var
 declare -A tokens_available=()
@@ -91,17 +98,21 @@ two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
 sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
 
+TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
+
 # add function to check when the script should finish
-end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime )
+end_epoch=$( bash $SCRIPTPATH/helpers.sh getBotEndTime "$TRADE_FREQUENCY_SECONDS" )
 function check_duration {
   extra_time="${1:-0}"
-  if [ ! -z $end_epoch ] && [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+  if [ ! -z $end_epoch ]
   then
-    echo "duration reached";
+    echo "duration check: $(( $end_epoch - $EPOCHSECONDS )) seconds left to go" > /dev/stderr
+    if [ $end_epoch -lt $(( $EPOCHSECONDS + $extra_time )) ]
+    then
+      echo "duration reached";
+    fi
   fi
 }
-
-TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 
 # respond to price changes forever
 while true
@@ -115,7 +126,7 @@ do
     break
   fi
 
-  echo "... loop will delay for: $delay"
+  echo "... loop will delay for: $delay seconds"
   sleep $delay
   echo "loop: starting at $EPOCHSECONDS"
 
@@ -134,6 +145,9 @@ do
     # convert price to price index here
     price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
+    rebalance_factor=$( echo "$token_pair_config" | jq -r '.rebalance_factor' )
+    deposit_factor=$( echo "$token_pair_config" | jq -r '.deposit_factor' )
+    swap_factor=$( echo "$token_pair_config" | jq -r '.swap_factor' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
     amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
@@ -151,8 +165,11 @@ do
     # in general terms this is:
     #     - deposited = available / (bot_count+1) / 2
     #     -  reserves = available - deposited
-    token0_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
-    token1_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
+    token0_max_initial_deposit_amount="$(( $token0_total_amount / ($bot_count + 1) / 2 ))"
+    token1_max_initial_deposit_amount="$(( $token1_total_amount / ($bot_count + 1) / 2 ))"
+    token0_initial_deposit_amount=$( rounded_calculation "$token0_max_initial_deposit_amount * $deposit_factor" )
+    token1_initial_deposit_amount=$( rounded_calculation "$token1_max_initial_deposit_amount * $deposit_factor" )
+
     # the amount of a single this is the deposit amount spread across the ticks on one side
     token0_single_tick_deposit_amount="$(( $token0_initial_deposit_amount / $tick_count_on_each_side ))"
     token1_single_tick_deposit_amount="$(( $token1_initial_deposit_amount / $tick_count_on_each_side ))"
@@ -160,10 +177,9 @@ do
     # determine the new current price goal
     # approximate price with sine curves of given amplitude and period
     # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
-    current_price=$( \
-      echo " $price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) " \
-      | bc -l \
-      | awk '{printf("%d\n",$0+0.5)}' \
+    current_price=$(
+      rounded_calculation \
+      "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
     )
 
     echo "pair: $token0<>$token1 current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $token0 per $token1)"
@@ -173,7 +189,8 @@ do
     then
       echo "making deposit: initial ticks for $token0 and $token1"
       # apply half of the available tokens to all tick indexes specified
-      neutrond tx dex deposit \
+      tx_response="$(
+        neutrond tx dex deposit \
         `# receiver` \
         $address \
         `# token-a` \
@@ -201,13 +218,11 @@ do
         `# list of fees` \
         "$( get_joined_array $tick_count get_fee "$fees" )" \
         `# disable_autoswap` \
-        "$(repeat_with_comma "false" "$tick_count")" \
+        "$( repeat_with_comma "true" "$tick_count" )" \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-        | jq -r '.txhash' \
-        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult "$API_ADDRESS" "{}" \
-        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} deposited: initial $tick_count seed liquidity ticks"
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+      )"
+      tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: initial $tick_count seed liquidity ticks" )"
 
       # commit the remainder amount of tokens to our token store
       tokens_available["$pair_index-$token0"]="$(( $token0_total_amount - $token0_initial_deposit_amount ))"
@@ -216,7 +231,9 @@ do
 
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
+    # compute goal price (and inverse gola price for inverted token pair order: token1<>token0)
     goal_price=$(( $current_price + $deviation ))
+    goal_price_ratio=$( echo "1.0001^$goal_price" | bc -l )
 
     # - make a swap to get to current price
     echo "calculating: a swap on the pair '$token0' and '$token1'..."
@@ -224,20 +241,19 @@ do
     # first, find the reserves of tokens that are outside the desired price
     # then swap those reserves
     echo "making query: of current '$token0' ticks"
-    reserves0=$( \
-      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 100 \
-      | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) > ($goal_price * -1)) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
+    first_tick0_price_ratio=$(
+      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token0" --output json --limit 1 \
+      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker"
     )
-    # convert back to decimal notation with float precision
-    reserves0=$( printf '%.0f\n' "$reserves0" )
-    # use bc for aribtrary precision math comparison (non-zero result evals true)
-    if (( $(bc <<< "$reserves0 > 0") ))
+    # use bc for aribtrary precision math comparison (check for null because non-zero result evals true)
+    echo "check: place-limit-order: token0 side: is $first_tick0_price_ratio > $goal_price_ratio ?"
+    if [ "$first_tick0_price_ratio" != "null" ] && (( $( bc <<< "$first_tick0_price_ratio > $goal_price_ratio" ) ))
     then
       echo "making place-limit-order: '$token1' -> '$token0'"
-      balance="$( neutrond query bank balances $address --denom $token1 --output json | jq -r '.amount' )"
-      if [ "$balance" -gt "0" ]
+      trade_amount="$( neutrond query bank balances $address --denom $token1 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      if [ "$trade_amount" -gt "0" ]
       then
-        response="$(
+        tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
           $address \
@@ -245,77 +261,60 @@ do
           $token1 \
           `# token out` \
           $token0 \
-          `# tickIndexInToOut (note: simply using the max tick limit so the limit is not reached)` \
+          `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
           "[$(( $goal_price * -1 ))]" \
-          `# amount in: allow up to the denom balance to be traded, so we can reach the tick limit` \
-          "$balance" \
+          `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
+          "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
           `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
           IMMEDIATE_OR_CANCEL \
           `# options` \
           --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
         )"
-        # check for bad Tx submissions
-        if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-        then
-          echo $response \
-            | jq -r '.txhash' \
-            | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-            | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-            | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
-        else
-          echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
-        fi
+        tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
         echo "skipping place-limit-order: '$token1' -> '$token0': not enough funds"
       fi
     else
-      echo "making query: of current '$token1' ticks"
-      reserves1=$( \
-        neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 100 \
-        | jq "[.tick_liquidity[].pool_reserves | select(.key.tick_index_taker_to_maker != null) | select((.key.tick_index_taker_to_maker | tonumber) < $goal_price) | if .reserves_maker_denom == null then 0 else .reserves_maker_denom end | tonumber] | add as \$sum | if \$sum == null then 0 else \$sum end" \
-      )
-      # convert back to decimal notation with float precision
-      reserves1=$( printf '%.0f\n' "$reserves1" )
-      if (( $(bc <<< "$reserves1 > 0") ))
+      echo "ignore place-limit-order: '$token1' -> '$token0': no liquidity to arbitrage"
+    fi
+    # find if there are tokens to swap in the other direction
+    echo "making query: of current '$token1' ticks"
+    first_tick1_price_ratio=$(
+      neutrond query dex list-tick-liquidity "$token0<>$token1" "$token1" --output json --limit 1 \
+      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
+    )
+    echo "check: place-limit-order: token1 side: is $first_tick1_price_ratio < $goal_price_ratio ?"
+    if [ "$first_tick1_price_ratio" != "null" ] && (( $(bc <<< "$first_tick1_price_ratio < $goal_price_ratio") ))
+    then
+      echo "making place-limit-order: '$token0' -> '$token1'"
+      trade_amount="$( neutrond query bank balances $address --denom $token0 --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      if [ "$trade_amount" -gt "0" ]
       then
-        echo "making place-limit-order: '$token0' -> '$token1'"
-        balance="$( neutrond query bank balances $address --denom $token0 --output json | jq -r '.amount' )"
-        if [ "$balance" -gt "0" ]
-        then
-          response="$(
-            neutrond tx dex place-limit-order \
-            `# receiver` \
-            $address \
-            `# token in` \
-            $token0 \
-            `# token out` \
-            $token1 \
-            `# tickIndexInToOut (note: simply using the max tick limit so the limit is not reached)` \
-            "[$(( $goal_price * 1 ))]" \
-            `# amount in: allow up to the denom balance to be traded, so we can reach the tick limit` \
-            "$balance" \
-              `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
-            `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
-            IMMEDIATE_OR_CANCEL \
-            `# options` \
-            --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
-          )"
-          # check for bad Tx submissions
-          if [ "$( echo $response | jq -r '.code' )" -eq "0" ]
-          then
-            echo $response \
-              | jq -r '.txhash' \
-              | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-              | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-              | xargs -I{} echo "{} swapped:   ticks toward target tick index of $goal_price"
-          else
-            echo $response | jq -r '"[ tx code: \(.code) ] [ tx raw_log: \(.raw_log) ]"' 1>&2
-          fi
-        else
-          echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
-        fi
+        tx_response="$(
+          neutrond tx dex place-limit-order \
+          `# receiver` \
+          $address \
+          `# token in` \
+          $token0 \
+          `# token out` \
+          $token1 \
+          `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
+          "[$goal_price]" \
+          `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
+          "$trade_amount" \
+            `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
+          `# use IMMEDIATE_OR_CANCEL which will has less strict checks that FILL_OR_KILL` \
+          IMMEDIATE_OR_CANCEL \
+          `# options` \
+          --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+        )"
+        tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
+      else
+        echo "skipping place-limit-order: '$token0' -> '$token1': not enough funds"
       fi
+    else
+      echo "ignore place-limit-order: '$token0' -> '$token1': no liquidity to arbitrage"
     fi
 
     # check if duration has been reached
@@ -324,16 +323,40 @@ do
       break
     fi
 
-    # - replace the end pieces of liquidity with values closer to the current price
+    echo "making query: finding user's deposits to re-balance"
+    user_deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
+    sorted_user_deposits=$(
+      echo "$user_deposits" | jq "
+        .deposits
+        | map(select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\"))
+        | sort_by(.center_tick_index | tonumber)
+      "
+    )
+    # get approximate token deposits on each side, ordered
+    token0_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) + (.fee | tonumber) < $current_price))" )
+    token1_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) - (.fee | tonumber) > $current_price)) | reverse" )
 
+    # calculate how many of each to rebalance (rebalance a fraction of the excessive deposits on either side)
+    # note: to avoid empty errors, we "rebalance" at least one tick from each side closer to the current price goal (this could be fixed in the future)
+    excess_count_filter="(length - $tick_count_on_each_side) * $rebalance_factor | floor | [., 1] | max"
+    token0_excess_user_deposits_count=$( echo "$token0_sorted_user_deposits" | jq -r "$excess_count_filter" )
+    token1_excess_user_deposits_count=$( echo "$token1_sorted_user_deposits" | jq -r "$excess_count_filter" )
+    excess_user_deposits_count=$(( $token0_excess_user_deposits_count + $token1_excess_user_deposits_count ))
+
+    echo "rebalance $token0 -> $token1: will move $token0_excess_user_deposits_count ticks"
+    echo "rebalance $token1 -> $token0: will move $token1_excess_user_deposits_count ticks"
+
+    # check if duration has been reached
+    if [ ! -z "$( check_duration )" ]
+    then
+      break
+    fi
+
+    # rebalance: deposit ticks on one side to make up for the ticks that we withdraw from the other side
     # determine new indexes close to the current price (within deposit accuracy, but not within swap accuracy)
-    new_index0=$( get_integer_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy )) )
-    new_index1=$( get_integer_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy )) )
-
-    # add these extra ticks to prevent swapping though all ticks errors
-    # we deposit first to lessen the cases where we have entirely one-sided liquidity
     echo "making deposit: '$token0' + '$token1'"
-    neutrond tx dex deposit \
+    tx_response="$(
+      neutrond tx dex deposit \
       `# receiver` \
       $address \
       `# token-a` \
@@ -341,21 +364,31 @@ do
       `# token-b` \
       $token1 \
       `# list of amount-0` \
-      "$token0_single_tick_deposit_amount,0" \
+      "$(
+        repeat_with_comma "$token0_single_tick_deposit_amount" "$token1_excess_user_deposits_count"
+      ),$(
+        repeat_with_comma "0" "$token0_excess_user_deposits_count"
+      )" \
       `# list of amount-1` \
-      "0,$token1_single_tick_deposit_amount" \
-      `# list of tick-index` \
-      "[$new_index0,$new_index1]" \
+      "$(
+        repeat_with_comma "0" "$token1_excess_user_deposits_count"
+      ),$(
+        repeat_with_comma "$token1_single_tick_deposit_amount" "$token0_excess_user_deposits_count"
+      )" \
+      `# list of tickIndexInToOut` \
+      "[$(
+        get_joined_array $token1_excess_user_deposits_count get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy ))
+      ),$(
+        get_joined_array $token0_excess_user_deposits_count get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy ))
+      )]" \
       `# list of fees` \
-      "$( get_joined_array 2 get_fee "$fees" )" \
+      "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
       `# disable_autoswap` \
-      false,false \
+      "$( repeat_with_comma "true" "$excess_user_deposits_count" )" \
       `# options` \
-      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-      | jq -r '.txhash' \
-      | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-      | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-      | xargs -I{} echo "{} deposited: new close-to-price ticks $new_index0, $new_index1"
+      --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+    )"
+    tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: new close-to-price ticks ($token1_excess_user_deposits_count, $token0_excess_user_deposits_count)" )"
 
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
@@ -364,27 +397,33 @@ do
     fi
 
     # find reserves to withdraw
-    echo "making query: finding '$token0', '$token1' deposits to withdraw"
-    user_deposits=$( bash $SCRIPTPATH/helpers.sh getAllItemsOfPaginatedAPIList "/neutron/dex/user/deposits/$address" "deposits" )
-    sorted_user_deposits=$(
-      echo "$user_deposits" | jq "[.deposits[] | select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\")] | sort_by((.center_tick_index | tonumber))"
-    )
-
-    last_liquidity0=$( echo "$sorted_user_deposits" | jq '.[0]' )
-    fee0=$( echo "$last_liquidity0" | jq -r '.fee' )
-    index0=$( echo "$last_liquidity0" | jq -r '.center_tick_index' )
-    reserves0=$( echo "$last_liquidity0" | jq -r '.shares_owned' )
-
-    last_liquidity1=$( echo "$sorted_user_deposits" | jq '.[-1]' )
-    fee1=$( echo "$last_liquidity1" | jq -r '.fee' )
-    index1=$( echo "$last_liquidity1" | jq -r '.center_tick_index' )
-    reserves1=$( echo "$last_liquidity1" | jq -r '.shares_owned' )
-
-    # withdraw the end values
-    if [ ! -z $reserves0 ] && [ ! -z $reserves1 ]
+    token0_sorted_excess_user_deposits="[]"
+    if [ "$token0_excess_user_deposits_count" -gt "0" ]
     then
+      token0_sorted_excess_user_deposits=$( echo "$token0_sorted_user_deposits" | jq ".[0:$token0_excess_user_deposits_count]" )
+    fi
+
+    token1_sorted_excess_user_deposits="[]"
+    if [ "$token1_excess_user_deposits_count" -gt "0" ]
+    then
+      token1_sorted_excess_user_deposits=$( echo "$token1_sorted_user_deposits" | jq ".[0:$token1_excess_user_deposits_count]" )
+    fi
+
+    user_deposits_to_withdraw=$(
+      echo "$token0_sorted_excess_user_deposits $token1_sorted_excess_user_deposits" | jq -s 'flatten'
+    )
+    user_deposits_to_withdraw_count=$( echo "$user_deposits_to_withdraw" | jq -r 'length' )
+
+    # withdraw deposits
+    if [ "$user_deposits_to_withdraw_count" -gt "0" ]
+    then
+      reserves=$( echo "$user_deposits_to_withdraw" | jq -r  '.[] | .shares_owned' )
+      indexes=$( echo "$user_deposits_to_withdraw" | jq -c 'map(.center_tick_index | tonumber)' ) # indexes can be a plain array
+      fees=$( echo "$user_deposits_to_withdraw" | jq -r '.[] | .fee' )
+
       echo "making withdrawal: '$token0' + '$token1'"
-      neutrond tx dex withdrawal \
+      tx_response="$(
+        neutrond tx dex withdrawal \
         `# receiver` \
         $address \
         `# token-a` \
@@ -392,17 +431,15 @@ do
         `# token-b` \
         $token1 \
         `# list of shares-to-remove` \
-        "$reserves0,$reserves1" \
+        "$( join_with_comma $reserves )" \
         `# list of tick-index (adjusted to center tick)` \
-        "[$index0,$index1]" \
+        "$indexes" \
         `# list of fees` \
-        "$fee0,$fee1" \
+        "$( join_with_comma $fees )" \
         `# options` \
-        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES \
-        | jq -r '.txhash' \
-        | xargs -I{} bash $SCRIPTPATH/helpers.sh waitForTxResult $API_ADDRESS "{}" \
-        | jq -r '"[ tx code: \(.tx_response.code) ] [ tx hash: \(.tx_response.txhash) ]"' \
-        | xargs -I{} echo "{} withdrew:  end ticks $index0, $index1"
+        --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
+      )"
+      tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "withdrew:  end ticks ($user_deposits_to_withdraw_count) $indexes" )"
     fi
 
   done

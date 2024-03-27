@@ -50,6 +50,9 @@ getBotNumber() {
 #   "ticks":            100,            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100] # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "gas":              "0untrn"        # additional gas tokens that bots can use to cover gas fees
+#   "rebalance_factor": 0.5,            # fraction of excessive deposits on either pair side to rebalance on each trade
+#   "deposit_factor":   0.5,            # fraction of the recommended maximum reserves to use on a single tick deposit
+#   "swap_factor":      0.5,            # max fraction of a bot's token reserves to use on a single swap trade (max: 1)
 #   "swap_accuracy":    100,            # ~1% of price:     swaps will target within ~1% of current price
 #   "deposit_accuracy": 1000,           # ~10% of price:    deposits will target within ~10% of current price
 #   "amplitude1":       5000,           # ~50% of price:    current price will vary by ~50% of set price ratio
@@ -107,6 +110,9 @@ getTokenConfigArray() {
                 price: (.value.price // $defaults.price // 1),
                 ticks: (.value.ticks // $defaults.ticks // 100),
                 fees: (.value.fees // $defaults.fees // [1, 5, 20, 100]),
+                rebalance_factor: (.value.rebalance_factor // $defaults.rebalance_factor // 0.5),
+                deposit_factor: (.value.deposit_factor // $defaults.deposit_factor // 0.5),
+                swap_factor: (.value.swap_factor // $defaults.swap_factor // 0.5),
                 swap_accuracy: (.value.swap_accuracy // $defaults.swap_accuracy // 100),
                 deposit_accuracy: (.value.deposit_accuracy // $defaults.deposit_accuracy // 1000),
                 amplitude1: (.value.amplitude1 // $defaults.amplitude1 // 5000),
@@ -203,15 +209,21 @@ getBotStartTime() {
                 sleep 1
             fi
         done
-        echo "waited. found: $first_bot_start_time" > /dev/stderr
+        echo "waited. found first start time: $first_bot_start_time" > /dev/stderr
         echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $first_bot_start_time ))"
     fi
 }
 getBotEndTime() {
-    bot_number=${1:-"$( getBotNumber )"}
+    minimum_duration=${1:-"0"}
+    bot_number=${2:-"$( getBotNumber )"}
     TRADE_DURATION_SECONDS="${TRADE_DURATION_SECONDS:-0}"
     if [ $TRADE_DURATION_SECONDS -gt 0 ]
     then
+        # make trade duration at least one trade long
+        if [ "$TRADE_DURATION_SECONDS" -lt "$minimum_duration" ]
+        then
+            TRADE_DURATION_SECONDS="$minimum_duration"
+        fi
         start_time=$( getBotStartTime $bot_number )
         echo "$(( $start_time + $TRADE_DURATION_SECONDS ))"
     fi
@@ -434,20 +446,58 @@ throwOnTxError() {
 }
 
 waitForTxResult() {
-    api=$1
-    hash=$2
-    echo "making request: for result of tx hash $api/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
-    echo "$(
-      curl \
-      --connect-timeout 10 \
-      --fail \
-      --retry 30 \
-      --retry-connrefused \
-      --retry-max-time 30 \
-      --retry-delay 1 \
-      --retry-all-errors \
-      -s $api/cosmos/tx/v1beta1/txs/$hash
-    )"
+    tx_response="${1:-"{}"}"
+    on_success_log="$2"
+    on_error_log="$3"
+    # check that the request was a success
+    code="$( echo "$tx_response" | jq -r '.code // 1' )"
+    if [ "$code" -eq "0" ]
+    then
+        # get hash from response
+        hash="$( echo "$tx_response" | jq -r '.txhash' )"
+        # log start
+        echo "creating request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
+        # we use curl instead of neutrond to take advangtage of simple curl retry settings
+        result="$(
+            curl \
+            --connect-timeout 10 \
+            --fail \
+            --retry 30 \
+            --retry-connrefused \
+            --retry-max-time 30 \
+            --retry-delay 1 \
+            --retry-all-errors \
+            -s $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash
+        )"
+        tx_response="$( echo "$result" | jq -r '.tx_response' )"
+        code="$( echo "$tx_response" | jq -r '.code // 0' )"
+        log="finished request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash"
+    else
+        log="finished request: tx was not processed"
+    fi
+    # log end
+    # add standard parts
+    log+=$'\n'
+    log+="$( echo "$tx_response" | jq -r '"- [ tx code: \(.code) ] [ tx hash: \(.txhash // .tx_hash) ]"' )"
+    if [ "$code" -ne "0" ]
+    then
+        log+=' '
+        log+="$( echo "$tx_response" | jq -r '"[ tx log: \(.raw_log) ]"' )"
+    fi
+    # add log descriptions if defined
+    if [ "$code" -eq "0" ] && [ ! -z "$on_success_log" ]
+    then
+        log+=$'\n'
+        log+="$on_success_log"
+    elif [ "$code" -ne "0" ] && [ ! -z "$on_error_log" ]
+    then
+        log+=$'\n'
+        log+="$on_error_log"
+    fi
+    # echo combined string
+    echo "$log" > /dev/stderr
+    # return the JSON result
+    echo "$tx_response"
 }
 
 
