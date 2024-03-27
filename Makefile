@@ -5,7 +5,7 @@ SETUP_DIR ?= $(REPOS_DIR)/neutron-integration-tests/setup
 DOCKER ?= docker
 COMPOSE ?= docker-compose
 NEUTRON_VERSION ?= v3.0.0
-GAIA_VERSION ?= v14.1.0
+GAIA_VERSION ?= v15.0.0
 NEUTRON_CONTAINER = $(shell $(DOCKER) ps --filter name=neutron-node -q)
 
 
