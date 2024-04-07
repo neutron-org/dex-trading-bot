@@ -7,7 +7,7 @@ services:
         #!/bin/bash
         set -e
 
-        # check if data was previously saved using ./script/save_chain_data.sh
+        # check if data was previously saved using `make save-neutron-node`
         if [ -d "/opt/neutron/backup-data" ]
         then
             cp -a /opt/neutron/backup-data/. /opt/neutron/data/
