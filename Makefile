@@ -87,8 +87,9 @@ clean:
 build-trade-bot:
 	@$(COMPOSE) build --build-arg NEUTRON_VERSION=$(NEUTRON_VERSION)
 
+start-trade-bot: TAG_NAME ?= "latest"
 start-trade-bot: build-trade-bot
-	@$(COMPOSE) up
+	@NEUTRON_IMAGE_TAG=$(TAG_NAME) $(COMPOSE) up
 
 stop-trade-bot:
 	@$(COMPOSE) down -t0 --remove-orphans -v
