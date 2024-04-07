@@ -111,6 +111,7 @@ stop-neutron-node:
 save-neutron-node: TAG_NAME ?= "saved"
 save-neutron-node:
 ifneq (,$(NEUTRON_CONTAINER))
+	$(DOCKER) exec $(NEUTRON_CONTAINER) rm -rf /opt/neutron/backup-data
 	$(DOCKER) exec $(NEUTRON_CONTAINER) mkdir /opt/neutron/backup-data
 	$(DOCKER) exec $(NEUTRON_CONTAINER) cp -a /opt/neutron/data/. /opt/neutron/backup-data/
 	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:$(NEUTROND_VERSION)-$(TAG_NAME)"
