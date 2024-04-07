@@ -119,5 +119,6 @@ else
 endif
 
 resume-neutron-node: TAG_NAME ?= "saved"
+resume-neutron-node: stop-neutron-node
 resume-neutron-node:
 	$(MAKE) start-neutron-node TAG_NAME=$(TAG_NAME)
