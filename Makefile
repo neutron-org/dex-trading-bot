@@ -7,6 +7,7 @@ COMPOSE ?= docker-compose
 NEUTRON_VERSION ?= v3.0.0
 GAIA_VERSION ?= v15.0.0
 NEUTRON_CONTAINER = $(shell $(DOCKER) ps --filter name=neutron-node -q)
+NEUTROND_VERSION = $(shell $(DOCKER) exec neutron-node neutrond version)
 
 
 # --- repo init commands ---
@@ -54,6 +55,7 @@ build-gaia: init-dir init-gaia
 
 build-neutron: init-dir init-neutron
 	cd $(REPOS_DIR)/neutron && $(MAKE) build-docker-image
+	docker tag neutron-node:latest neutron-node:$(NEUTRON_VERSION)
 
 build-hermes: init-dir init-hermes
 	cd $(SETUP_DIR) && $(MAKE) build-hermes
@@ -110,7 +112,7 @@ save-neutron-node:
 ifneq ($(NEUTRON_CONTAINER), undefined)
 	$(DOCKER) exec $(NEUTRON_CONTAINER) mkdir /opt/neutron/backup-data
 	$(DOCKER) exec $(NEUTRON_CONTAINER) cp -a /opt/neutron/data/. /opt/neutron/backup-data/
-	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:$(TAG_NAME)"
+	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:$(NEUTROND_VERSION)-$(TAG_NAME)"
 	$(DOCKER) exec $(NEUTRON_CONTAINER) rm -rf /opt/neutron/backup-data
 else
 	@echo "run container first: eg. \`make start-neutron-node\`, you can remove it after with  \`make stop-neutron-node\`"
