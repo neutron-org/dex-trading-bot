@@ -114,7 +114,7 @@ ifneq (,$(NEUTRON_CONTAINER))
 	$(DOCKER) exec $(NEUTRON_CONTAINER) rm -rf /opt/neutron/backup-data
 	$(DOCKER) exec $(NEUTRON_CONTAINER) mkdir /opt/neutron/backup-data
 	$(DOCKER) exec $(NEUTRON_CONTAINER) cp -a /opt/neutron/data/. /opt/neutron/backup-data/
-	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:$(NEUTROND_VERSION)-$(TAG_NAME)"
+	$(DOCKER) commit $(NEUTRON_CONTAINER) "neutron-node:v$(NEUTROND_VERSION)-$(TAG_NAME)"
 	$(DOCKER) exec $(NEUTRON_CONTAINER) rm -rf /opt/neutron/backup-data
 else
 	@echo "run container first: eg. \`make start-neutron-node\`, you can remove it after with  \`make stop-neutron-node\`"
