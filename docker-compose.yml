@@ -7,11 +7,16 @@ services:
         #!/bin/bash
         set -e
 
+        BASE_DIR=/opt/neutron/data
+        CHAIN_DIR="$$BASE_DIR/$$CHAINID"
+
         # check if data was previously saved using `make save-neutron-node`
         if [ -d "/opt/neutron/backup-data" ]
         then
             cp -a /opt/neutron/backup-data/. /opt/neutron/data/
             rm -r /opt/neutron/backup-data
+            # rollback data one block because it may have been saved mid-block
+            neutrond rollback --home "$$CHAIN_DIR"
         fi
 
         # initialize the chain state data if it not set yet
@@ -21,8 +26,6 @@ services:
         fi
 
         # allow CORS requests from dev localhost origin
-        BASE_DIR=/opt/neutron/data
-        CHAIN_DIR="$$BASE_DIR/$$CHAINID"
         sed -i -e "s/cors_allowed_origins = \[\]/cors_allowed_origins = $$CORS_ALLOWED_ORIGINS/g" "$$CHAIN_DIR/config/config.toml"
 
         # run chain
