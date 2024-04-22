@@ -18,6 +18,7 @@ To run the default setup of a single neutron-node chain and a single trading bot
     - `BOT_MNEMONIC`
     - `BOT_MNEMONICS`
     - `FAUCET_MNEMONIC`
+    - if running a local chain you can use DEMO_MNEMONICs from the neutron repo [networks/init.sh](https://github.com/neutron-org/neutron/blob/v3.0.0/network/init.sh#L19-L21) file
 
 This composed neutron chain and trading bot network will persist until you call:
 - `make stop-trade-bot`
@@ -65,7 +66,7 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
         - `FAUCET_MNEMONIC` (optional): the mnemonic of the account that will fund generated bots
         - `BOT_MNEMONIC/S` or `MNEMONIC/S` (optional): the mnemonics for self-funded bot account(s)
         - at least one of `FAUCET_MNEMONIC` or `BOT_/MNEMONIC/S` should be provided
-        - with a local chain you can use `DEMO_MNEMONIC`s from the neutron networks/init.sh file
+        - with a local chain you can use `DEMO_MNEMONIC`s from the neutron repo [networks/init.sh](https://github.com/neutron-org/neutron/blob/v3.0.0/network/init.sh#L19-L21) file
 
 eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450 MNEMONIC=...`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.
