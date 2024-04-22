@@ -18,7 +18,6 @@ To run the default setup of a single neutron-node chain and a single trading bot
     - `BOT_MNEMONIC`
     - `BOT_MNEMONICS`
     - `FAUCET_MNEMONIC`
-    - `FAUCET_MNEMONICS`
 
 This composed neutron chain and trading bot network will persist until you call:
 - `make stop-trade-bot`
