@@ -12,18 +12,24 @@ locally this should be a single dockerized neutron node
 - `make build-neutron`
 
 To run the default setup of a single neutron-node chain and a single trading bot:
-- `make start-trade-bot`
+- `make start-trade-bot MNEMONIC=...`
+- at least a single mnenomic must be specified from the mnenomics listed in the options section below
+    - `MNEMONIC`
+    - `MNEMONICS`
+    - `BOT_MNEMONIC`
+    - `BOT_MNEMONICS`
+    - `FAUCET_MNEMONIC`
 
 This composed neutron chain and trading bot network will persist until you call:
 - `make stop-trade-bot`
 
 ### Test runs (start+stop)
 You can test a chain and bot(s) configuration and exit with cleanup in one step using:
-- `make test-trade-bot`
+- `make test-trade-bot MNEMONIC=...`
 
 However the default settings are quite conservative, and won't product many txs.
 A larger test which should generate approximately ~1000-2000 txs in ~6 minutes with 30 bots could be done with:
-- `make test-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=180`
+- `make test-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=180 MNEMONIC=...`
 
 This can be ideal for CI type testing of a service that depends on Dex transactions on a Neutron chain.
 But if you want the chain to persist after the trades are completed (with a finite `TRADE_DURATION_SECONDS`),
