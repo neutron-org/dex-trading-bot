@@ -132,7 +132,7 @@ do
 
   for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
   do
-    token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair | sort_by(.denom)" )
+    token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair" )
     token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
 
     # pair simulation options
@@ -328,7 +328,22 @@ do
     sorted_user_deposits=$(
       echo "$user_deposits" | jq "
         .deposits
-        | map(select(.pair_id.token0 == \"$token0\") | select(.pair_id.token1 == \"$token1\"))
+        | map(
+          (
+            select(.pair_id.token0 == \"$token0\") |
+            select(.pair_id.token1 == \"$token1\")
+          ),
+          # if the tokens were written in the reverse order then the deposit tick indexes should be flipped
+          (
+            select(.pair_id.token0 == \"$token1\") |
+            select(.pair_id.token1 == \"$token0\")
+            | (. + {
+              center_tick_index: (.center_tick_index | tonumber * -1),
+              lower_tick_index: (.lower_tick_index | tonumber * -1),
+              upper_tick_index: (.upper_tick_index | tonumber * -1),
+            })
+          )
+        )
         | sort_by(.center_tick_index | tonumber)
       "
     )
