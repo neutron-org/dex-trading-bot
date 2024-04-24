@@ -87,6 +87,7 @@ services:
             "gas":"1000000000untrn"
           }
         }
+      - COIGECKO_API_TOKEN=${COIGECKO_API_TOKEN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
