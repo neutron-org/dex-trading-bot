@@ -351,6 +351,10 @@ do
     tokenA_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) + (.fee | tonumber) < $current_price))" )
     tokenB_sorted_user_deposits=$( echo "$sorted_user_deposits" | jq "map(select((.center_tick_index | tonumber) - (.fee | tonumber) > $current_price)) | reverse" )
 
+    echo "check: user deposits found for pair $tokenA<>$tokenB: $( echo $sorted_user_deposits | jq -r 'length' )"
+    echo "check: estimated user deposits found for $tokenA: $( echo $tokenA_sorted_user_deposits | jq -r 'length' )"
+    echo "check: estimated user deposits found for $tokenB: $( echo $tokenB_sorted_user_deposits | jq -r 'length' )"
+
     # calculate how many of each to rebalance (rebalance a fraction of the excessive deposits on either side)
     # note: to avoid empty errors, we "rebalance" at least one tick from each side closer to the current price goal (this could be fixed in the future)
     excess_count_filter="(length - $tick_count_on_each_side) * $rebalance_factor | floor | [., 1] | max"
