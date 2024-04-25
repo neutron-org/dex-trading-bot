@@ -11,15 +11,9 @@ To run the bot, you will first need a chain to run the bot against,
 locally this should be a single dockerized neutron node
 - `make build-neutron`
 
-To run the default setup of a single neutron-node chain and a single trading bot:
+To run the default setup of a single neutron-node chain and a single trading bot with a single wallet:
 - `make start-trade-bot MNEMONIC=...`
-- at least a single mnenomic must be specified from the mnenomics listed in the options section below
-    - `MNEMONIC`
-    - `MNEMONICS`
-    - `BOT_MNEMONIC`
-    - `BOT_MNEMONICS`
-    - `FAUCET_MNEMONIC`
-    - if running a local chain you can use DEMO_MNEMONICs from the neutron repo [networks/init.sh](https://github.com/neutron-org/neutron/blob/v3.0.0/network/init.sh#L19-L21) file
+- the available `MNENOMIC` options are explained in the [Options section](#mnemonic-options)
 
 This composed neutron chain and trading bot network will persist until you call:
 - `make stop-trade-bot`
@@ -37,6 +31,19 @@ But if you want the chain to persist after the trades are completed (with a fini
 then `make start-trade-bot` should be used instead.
 
 ## Available options
+
+### Mnemonic options
+A single mnenomic option must be specified to run `make start-trade-bot` or `make test-trade-bot` this may be in the form of:
+- a list of mnemonics to be used (delimited with any `\r\n,;` characters) where one mnemonic is given to each bot (in series). An error will be thrown if not enough mnemonics are provided for the number of `BOTS` requested.
+    - `MNEMONIC`
+    - `MNEMONICS`
+    - `BOT_MNEMONIC`
+    - `BOT_MNEMONICS`
+- a single mnenomic which will be used to like a faucet to fund a separate randomly generated wallet for each bot requested (so you may easily run more than one bot with one wallet).
+    - `FAUCET_MNEMONIC`
+- if you are running a local chain you can use the DEMO_MNEMONICs from the neutron repo [networks/init.sh](https://github.com/neutron-org/neutron/blob/v3.0.0/network/init.sh#L19-L21) file for these settings.
+
+### Optional options
 
 All docker-compose env vars are able to be set in both `make start-trade-bot` and `make test-trade-bot`
 - Chain variables
