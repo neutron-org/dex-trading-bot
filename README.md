@@ -41,6 +41,8 @@ A single mnenomic option must be specified to run `make start-trade-bot` or `mak
     - `BOT_MNEMONICS`
 - a single mnenomic which will be used to like a faucet to fund a separate randomly generated wallet for each bot requested (so you may easily run more than one bot with one wallet).
     - `FAUCET_MNEMONIC`
+    - on simulation end: the remaining token balance will be refunded to the faucet wallet.
+    - you should strongly consider using `ON_EXIT_WITHDRAW_POOLS=1` when using this option on a testnet. If the pools are not withdrawn after the simulation and you have not recorded the randomly generated mnenomics for each bot: then ***you will lose access to these deposited tokens***.
 - if you are running a local chain you can use the DEMO_MNEMONICs from the neutron repo [networks/init.sh](https://github.com/neutron-org/neutron/blob/v3.0.0/network/init.sh#L19-L21) file for these settings.
 
 ### Optional options
