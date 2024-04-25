@@ -47,7 +47,7 @@ getBotNumber() {
 # the object values are the price ratio of tokenB/tokenA, a coingecko pair or a config object: (default values are listed)
 # PAIR_CONFIG = {
 #   "price":            1,                              # price ratio is of tokenB/tokenA (how many tokenA is required to buy 1 tokenB?), OR
-#   "price":            "coingecko:api_id0<>api_id1",   # for live price retrieval, use the coingecko API IDs of the tokens (e.g. "coingecko:cosmos<>neutron-3" for atom<>ntrn pair)
+#   "price":            "coingecko:api_idA<>api_idB",   # for live price retrieval, use the coingecko API IDs of the tokens (e.g. "coingecko:cosmos<>neutron-3" for atom<>ntrn pair)
 #   "ticks":            100,                            # number of ticks for each bot to deposit
 #   "fees":             [1, 5, 20, 100]                 # each LP deposit fee may be (randomly) one of the whitelisted fees here
 #   "gas":              "0untrn"                        # additional gas tokens that bots can use to cover gas fees
