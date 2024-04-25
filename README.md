@@ -48,7 +48,7 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
     - `GAS_ADJUSTMENT`: how much more than the base estimated gas price to pay for each tx
     - `GAS_PRICES`: calculate how many fees to pay from this fraction of gas
     - `TOKEN_CONFIG`: a token pairs configuration (JSON) object for eg. token amounts to trade
-        - see [helpers.sh](https://github.com/neutron-org/dex-trading-bot/blob/6405de231be4cb7a40faa460ba2816162afb9848/scripts/helpers.sh#L41-L63) for more setting details
+        - see [helpers.sh](https://github.com/neutron-org/dex-trading-bot/blob/131a5f1590483840305cb475f8a867996509333e/scripts/helpers.sh#L41-L63) for more setting details
     - mnemonics:
         - `FAUCET_MNEMONIC` (optional): the mnemonic of the account that will fund generated bots
         - `BOT_MNEMONIC/S` or `MNEMONIC/S` (optional): the mnemonics for self-funded bot account(s)
