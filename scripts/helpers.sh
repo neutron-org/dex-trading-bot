@@ -456,7 +456,7 @@ waitForTxResult() {
         # get hash from response
         hash="$( echo "$tx_response" | jq -r '.txhash' )"
         # log start
-        echo "creating request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
+        echo "creating request: for tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash" > /dev/stderr
         # we use curl instead of neutrond to take advangtage of simple curl retry settings
         result="$(
             curl \
@@ -471,7 +471,7 @@ waitForTxResult() {
         )"
         tx_response="$( echo "$result" | jq -r '.tx_response' )"
         code="$( echo "$tx_response" | jq -r '.code // 0' )"
-        log="finished request: for result of tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash"
+        log="finished request: for tx hash $API_ADDRESS/cosmos/tx/v1beta1/txs/$hash"
     else
         log="finished request: tx was not processed"
     fi
