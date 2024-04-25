@@ -153,7 +153,7 @@ do
     # if price is a number, i.e. if price is set manually
     if (( $(echo "$price_config" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 1 ))
     then
-      echo "crafting $token0<>$token1 price using config approximation params" > /dev/stderr
+      echo "crafting $token0<>$token1 price using config approximation params"
 
       # pair simulation options
       amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
@@ -163,7 +163,7 @@ do
 
       # convert price to price index here
       price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
-      echo "calculated price index before approximation $price_index" > /dev/stderr
+      echo "calculated price index before approximation $price_index"
 
       # determine the new current price goal
       # approximate price with sine curves of given amplitude and period
@@ -181,25 +181,25 @@ do
         api_id0="${BASH_REMATCH[1]}"
         api_id1="${BASH_REMATCH[2]}"
       else
-        echo "error: unexpected coingecko price format $price_config" > /dev/stderr
+        echo "error: unexpected coingecko price format $price_config"
         exit 1
       fi
 
       api_token="${COINGECKO_API_TOKEN}"
       if [[ -z $api_token ]]
       then
-        echo "error: coingecko API token is not provided" > /dev/stderr
+        echo "error: coingecko API token is not provided"
         exit 1
       fi
       
-      echo "getting $token0 ($api_id0) and $token1 ($api_id1) prices from coingecko" > /dev/stderr
+      echo "getting $token0 ($api_id0) and $token1 ($api_id1) prices from coingecko"
 
       # get token0 price in usd
       price0_resp=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=$api_id0&x_cg_demo_api_key=$api_token")
       price0=$(echo $price0_resp | jq -r '.[0].current_price')
       if (( $(echo "$price0" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
       then
-        echo "failed to get current $token0 price price from coingecko response: $price0_resp" > /dev/stderr
+        echo "failed to get current $token0 price price from coingecko response: $price0_resp"
         exit 1
       fi
 
@@ -208,21 +208,21 @@ do
       price1=$(echo $price1_resp | jq -r '.[0].current_price')
       if (( $(echo "$price1" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
       then
-        echo "failed to get current $token1 price price from coingecko response: $price1_resp" > /dev/stderr
+        echo "failed to get current $token1 price price from coingecko response: $price1_resp"
         exit 1
       fi
 
-      echo "got prices: $token0 = $price0, $token1 = $price1" > /dev/stderr
+      echo "got prices: $token0 = $price0, $token1 = $price1"
 
       # convert assets price ratio to price index here
       current_price=$(
         rounded_calculation \
         "l($price1/$price0) / l(1.0001)"
       )
-      echo "calculated price index $current_price" > /dev/stderr
+      echo "calculated price index $current_price"
 
     else
-      echo "error: unexpected $token0<>$token1 price format $price_config: expected a number or a coingecko pair" > /dev/stderr
+      echo "error: unexpected $token0<>$token1 price format $price_config: expected a number or a coingecko pair"
       exit 1
     fi
 
