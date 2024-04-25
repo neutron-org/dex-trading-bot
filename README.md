@@ -48,12 +48,13 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
     - `GAS_ADJUSTMENT`: how much more than the base estimated gas price to pay for each tx
     - `GAS_PRICES`: calculate how many fees to pay from this fraction of gas
     - `TOKEN_CONFIG`: a token pairs configuration (JSON) object for eg. token amounts to trade
-        - see [helpers.sh](https://github.com/neutron-org/dex-trading-bot/blob/9d94316d9e0dcceba67bc9742deef386589ef82e/scripts/helpers.sh#L41-L59) for more setting details
+        - see [helpers.sh](https://github.com/neutron-org/dex-trading-bot/blob/131a5f1590483840305cb475f8a867996509333e/scripts/helpers.sh#L41-L63) for more setting details
     - mnemonics:
         - `FAUCET_MNEMONIC` (optional): the mnemonic of the account that will fund generated bots
         - `BOT_MNEMONIC/S` or `MNEMONIC/S` (optional): the mnemonics for self-funded bot account(s)
         - at least one of `FAUCET_MNEMONIC` or `BOT_/MNEMONIC/S` should be provided
         - with a local chain you can use `DEMO_MNEMONIC`s from the neutron networks/init.sh file
+    - `COINGECKO_API_TOKEN`: a Coingecko API token used for live prices fetching. Only used with respective token pair price setting. The token should be a [demo API token](https://www.coingecko.com/en/api/pricing). Pro tokens aren't supported because they use different endpoints. Keep in mind the very limited request rate the demo tokens provide when configuring the bots number and trading intensity.
 
 eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450 MNEMONIC=...`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.

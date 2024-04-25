@@ -135,25 +135,93 @@ do
     token_pair=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].pair" )
     token_pair_config=$( echo "$token_pair_config_array" | jq -r ".[$pair_index].config" )
 
-    # pair simulation options
+    # common pair config variables
     tokenA=$( echo "$token_pair" | jq -r '.[0].denom' )
     tokenB=$( echo "$token_pair" | jq -r '.[1].denom' )
     tokenA_total_amount=$( echo "$token_pair" | jq -r '.[0].amount' )
     tokenB_total_amount=$( echo "$token_pair" | jq -r '.[1].amount' )
     tick_count=$( echo "$token_pair_config" | jq -r '.ticks' )
     tick_count_on_each_side=$(( $tick_count / 2 ))
-    # convert price to price index here
-    price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
     fees=$( echo "$token_pair_config" | jq -r '.fees' )
     rebalance_factor=$( echo "$token_pair_config" | jq -r '.rebalance_factor' )
     deposit_factor=$( echo "$token_pair_config" | jq -r '.deposit_factor' )
     swap_factor=$( echo "$token_pair_config" | jq -r '.swap_factor' )
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
-    amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
-    amplitude2=$( echo "$token_pair_config" | jq -r '.amplitude2' )
-    period1=$( echo "$token_pair_config" | jq -r '.period1' )
-    period2=$( echo "$token_pair_config" | jq -r '.period2' )
+    price_config=$( echo "$token_pair_config" | jq -r '.price' )
+
+    # if price is a number, i.e. if price is set manually
+    if (( $(echo "$price_config" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 1 ))
+    then
+      echo "crafting $tokenA<>$tokenB price using config approximation params"
+
+      # pair simulation options
+      amplitude1=$( echo "$token_pair_config" | jq -r '.amplitude1' )
+      amplitude2=$( echo "$token_pair_config" | jq -r '.amplitude2' )
+      period1=$( echo "$token_pair_config" | jq -r '.period1' )
+      period2=$( echo "$token_pair_config" | jq -r '.period2' )
+
+      # convert price to price index here
+      price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
+      echo "calculated price index before approximation $price_index"
+
+      # determine the new current price goal
+      # approximate price with sine curves of given amplitude and period
+      # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
+      current_price=$(
+        rounded_calculation \
+        "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
+      )
+
+    # if price is configured to be fetched from coingecko
+    elif [[ $price_config == coingecko:* ]]
+    then
+      if [[ $price_config =~ ^coingecko\:([a-zA-Z0-9-]+)\<\>([a-zA-Z0-9-]+)$ ]]
+      then
+        api_idA="${BASH_REMATCH[1]}"
+        api_idB="${BASH_REMATCH[2]}"
+      else
+        echo "error: unexpected coingecko price format $price_config"
+        exit 1
+      fi
+
+      api_token="${COINGECKO_API_TOKEN}"
+      if [[ -z $api_token ]]
+      then
+        echo "error: coingecko API token is not provided"
+        exit 1
+      fi
+
+      echo "getting $tokenA ($api_idA) and $tokenB ($api_idB) prices from coingecko"
+
+      # get token prices in usd
+      prices_resp=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=$api_idA,$api_idB&x_cg_demo_api_key=$api_token")
+      priceA=$(echo $prices_resp | jq -r '.[] | select(.id == "'"$api_idA"'") | .current_price')
+      if (( $(echo "$priceA" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
+      then
+        echo "failed to get current $tokenA price from coingecko response: $prices_resp"
+        exit 1
+      fi
+      priceB=$(echo $prices_resp | jq -r '.[] | select(.id == "'"$api_idB"'") | .current_price')
+      if (( $(echo "$priceB" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
+      then
+        echo "failed to get current $tokenB price from coingecko response: $prices_resp"
+        exit 1
+      fi
+
+      echo "got prices: $tokenA = $priceA, $tokenB = $priceB"
+
+      # convert assets price ratio to price index here
+      current_price=$(
+        rounded_calculation \
+        "l($priceB/$priceA) / l(1.0001)"
+      )
+      echo "calculated price index $current_price"
+
+    else
+      echo "error: unexpected $tokenA<>$tokenB price format $price_config: expected a number or a coingecko pair"
+      exit 1
+    fi
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
@@ -173,14 +241,6 @@ do
     # the amount of a single this is the deposit amount spread across the ticks on one side
     tokenA_single_tick_deposit_amount="$(( $tokenA_initial_deposit_amount / $tick_count_on_each_side ))"
     tokenB_single_tick_deposit_amount="$(( $tokenB_initial_deposit_amount / $tick_count_on_each_side ))"
-
-    # determine the new current price goal
-    # approximate price with sine curves of given amplitude and period
-    # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
-    current_price=$(
-      rounded_calculation \
-      "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
-    )
 
     echo "pair: $tokenA<>$tokenB current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $tokenA per $tokenB)"
 
