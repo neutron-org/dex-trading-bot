@@ -185,7 +185,7 @@ do
         exit 1
       fi
 
-      api_token="${COIGECKO_API_TOKEN}"
+      api_token="${COINGECKO_API_TOKEN}"
       if [[ -z $api_token ]]
       then
         echo "error: coingecko API token is not provided" > /dev/stderr
