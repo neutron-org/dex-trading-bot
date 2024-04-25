@@ -54,7 +54,7 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
         - `BOT_MNEMONIC/S` or `MNEMONIC/S` (optional): the mnemonics for self-funded bot account(s)
         - at least one of `FAUCET_MNEMONIC` or `BOT_/MNEMONIC/S` should be provided
         - with a local chain you can use `DEMO_MNEMONIC`s from the neutron networks/init.sh file
-    - `COINGECKO_API_TOKEN`: a Coingecko API token used for live prices fetching (only used with pespective token pair price setting)
+    - `COINGECKO_API_TOKEN`: a Coingecko API token used for live prices fetching. Only used with pespective token pair price setting. Keep in mind the [rate limits for different types of Coingecko API tokens](https://www.coingecko.com/en/api/pricing).
 
 eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450 MNEMONIC=...`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.
