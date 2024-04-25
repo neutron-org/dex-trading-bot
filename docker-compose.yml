@@ -73,7 +73,7 @@ services:
       # use range of token amounts to visualize multiple orders of magnitude in dev UI
       - TOKEN_CONFIG_DEFAULT=
         {
-          "10000000000000uibcatom<>10000000000000uibcusdc":0.1,
+          "10000000000000uibcusdc<>10000000000000uibcatom":10,
           "100000000000uibcusdc<>100000000000untrn":{
             "price":2,
             "ticks":50
