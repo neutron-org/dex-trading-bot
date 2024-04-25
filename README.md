@@ -75,7 +75,7 @@ All docker-compose env vars are able to be set in both `make start-trade-bot` an
 eg. `make start-trade-bot BOTS=30 BOT_RAMPING_DELAY=5 TRADE_FREQUENCY_SECONDS=0 TRADE_DURATION_SECONDS=450 MNEMONIC=...`
 will start a persistent chain that for the first ~10min (7min+ramping) will generate ~5000txs using 30 bots.
 
-#### TOKEN_CONFIG option
+### TOKEN_CONFIG option
 
 format for TOKEN_CONFIG is:
 ```
