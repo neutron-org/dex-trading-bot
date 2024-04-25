@@ -191,24 +191,21 @@ do
         echo "error: coingecko API token is not provided"
         exit 1
       fi
-      
+
       echo "getting $token0 ($api_id0) and $token1 ($api_id1) prices from coingecko"
 
-      # get token0 price in usd
-      price0_resp=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=$api_id0&x_cg_demo_api_key=$api_token")
-      price0=$(echo $price0_resp | jq -r '.[0].current_price')
+      # get token prices in usd
+      prices_resp=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=$api_id0,$api_id1&x_cg_demo_api_key=$api_token")
+      price0=$(echo $prices_resp | jq -r '.[] | select(.id == "'"$api_id0"'") | .current_price')
       if (( $(echo "$price0" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
       then
-        echo "failed to get current $token0 price price from coingecko response: $price0_resp"
+        echo "failed to get current $token0 price from coingecko response: $prices_resp"
         exit 1
       fi
-
-      # get token1 price in usd
-      price1_resp=$(curl -s "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=$api_id1&x_cg_demo_api_key=$api_token")
-      price1=$(echo $price1_resp | jq -r '.[0].current_price')
+      price1=$(echo $prices_resp | jq -r '.[] | select(.id == "'"$api_id1"'") | .current_price')
       if (( $(echo "$price1" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 0 )) # expected a number
       then
-        echo "failed to get current $token1 price price from coingecko response: $price1_resp"
+        echo "failed to get current $token1 price from coingecko response: $prices_resp"
         exit 1
       fi
 
