@@ -40,7 +40,7 @@ An error will be thrown if not enough mnemonics are provided for the number of `
     - `MNEMONICS`
     - `BOT_MNEMONIC`
     - `BOT_MNEMONICS`
-- a single mnenomic which will be used to like a faucet to fund a separate randomly generated wallet for each bot
+- a single mnenomic which will be used like a faucet to fund a separate randomly generated wallet for each bot
 (so you may easily run more than one bot with one wallet).
     - `FAUCET_MNEMONIC`
     - on simulation end: the remaining token balance will be refunded to the faucet wallet.
