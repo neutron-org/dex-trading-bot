@@ -38,30 +38,11 @@ getBotNumber() {
     fi
 }
 
-# format for TOKEN_CONFIG is:
-# TOKEN_CONFIG = {
-#   "amountAtokenA<>amountBtokenB": numeric_price_or_PAIR_CONFIG_object,
-#   "defaults": PAIR_CONFIG
-# }
-# the object keys are the usable tokens for each pair (to be shared across all bots),
-# the object values are the price ratio of tokenB/tokenA, a coingecko pair or a config object: (default values are listed)
-# PAIR_CONFIG = {
-#   "price":            1,                              # price ratio is of tokenB/tokenA (how many tokenA is required to buy 1 tokenB?), OR
-#   "price":            "coingecko:api_idA<>api_idB",   # for live price retrieval, use the coingecko API IDs of the tokens (e.g. "coingecko:cosmos<>neutron-3" for atom<>ntrn pair)
-#   "ticks":            100,                            # number of ticks for each bot to deposit
-#   "fees":             [1, 5, 20, 100]                 # each LP deposit fee may be (randomly) one of the whitelisted fees here
-#   "gas":              "0untrn"                        # additional gas tokens that bots can use to cover gas fees
-#   "rebalance_factor": 0.5,                            # fraction of excessive deposits on either pair side to rebalance on each trade
-#   "deposit_factor":   0.5,                            # fraction of the recommended maximum reserves to use on a single tick deposit
-#   "swap_factor":      0.5,                            # max fraction of a bot's token reserves to use on a single swap trade (max: 1)
-#   "swap_accuracy":    100,                            # ~1% of price:     swaps will target within ~1% of current price
-#   "deposit_accuracy": 1000,                           # ~10% of price:    deposits will target within ~10% of current price
-#   "amplitude1":       5000,                           # ~50% of price:    current price will vary by ~50% of set price ratio
-#   "period1":          36000,                          # ten hours:        current price will cycle min->max->min every ten hours
-#   "amplitude2":       1000,                           # ~10% of price:    current price will vary by an additional ~10% of price ratio
-#   "period2":          600,                            # ten minutes:      current price will cycle amplitude2 offset every ten minutes
-# }
-# which is transformed to format for token_config_array = [
+# getTokenConfigArray transforms a given TOKEN_CONFIG (or TOKEN_CONFIG_DEFAULT) object
+# into a new format that is easier to query through `jq`.
+# the TOKEN_CONFIG and PAIR_CONFIG object format is listed in the README file
+#
+# token_config_array = [
 #   {
 #     "pair": [
 #       {
