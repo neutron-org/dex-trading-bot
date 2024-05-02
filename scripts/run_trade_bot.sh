@@ -458,7 +458,7 @@ do
       "[$(
         get_joined_array $tokenB_excess_user_deposits_count get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy ))
       ),$(
-        get_joined_array $tokenA_excess_user_deposits_count get_unique_integers_between $(( $current_price + $deposit_index_accuracy )) $(( $current_price + $swap_index_accuracy ))
+        get_joined_array $tokenA_excess_user_deposits_count get_unique_integers_between $(( $current_price + $swap_index_accuracy )) $(( $current_price + $deposit_index_accuracy ))
       )]" \
       `# list of fees` \
       "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
