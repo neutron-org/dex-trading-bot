@@ -434,6 +434,12 @@ do
     # rebalance: deposit ticks on one side to make up for the ticks that we withdraw from the other side
     # determine new indexes close to the current price (within deposit accuracy, but not within swap accuracy)
     echo "making deposit: '$tokenA' + '$tokenB'"
+    indexes="[$(
+      get_joined_array $tokenB_excess_user_deposits_count get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy ))
+    ),$(
+      get_joined_array $tokenA_excess_user_deposits_count get_unique_integers_between $(( $current_price + $swap_index_accuracy )) $(( $current_price + $deposit_index_accuracy ))
+    )]"
+    fees="$( get_joined_array $excess_user_deposits_count get_fee "$fees" )"
     tx_response="$(
       neutrond tx dex deposit \
       `# receiver` \
@@ -455,19 +461,15 @@ do
         repeat_with_comma "$tokenB_single_tick_deposit_amount" "$tokenA_excess_user_deposits_count"
       )" \
       `# list of tickIndexInToOut` \
-      "[$(
-        get_joined_array $tokenB_excess_user_deposits_count get_unique_integers_between $(( $current_price - $deposit_index_accuracy )) $(( $current_price - $swap_index_accuracy ))
-      ),$(
-        get_joined_array $tokenA_excess_user_deposits_count get_unique_integers_between $(( $current_price + $swap_index_accuracy )) $(( $current_price + $deposit_index_accuracy ))
-      )]" \
+      $indexes \
       `# list of fees` \
-      "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
+      $fees \
       `# disable_autoswap` \
       "$( repeat_with_comma "true" "$excess_user_deposits_count" )" \
       `# options` \
       --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
     )"
-    tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: new close-to-price ticks ($tokenB_excess_user_deposits_count, $tokenA_excess_user_deposits_count)" )"
+    tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "deposited: new close-to-price ticks ($tokenB_excess_user_deposits_count, $tokenA_excess_user_deposits_count) $indexes" )"
 
     # check if duration has been reached
     if [ ! -z "$( check_duration )" ]
