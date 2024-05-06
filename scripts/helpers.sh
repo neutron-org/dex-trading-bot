@@ -192,7 +192,7 @@ getBotStartTime() {
             fi
         done
         echo "waited. found first start time: $first_bot_start_time" > /dev/stderr
-        echo "$(( ($bot_number - 1) * $BOT_RAMPING_DELAY + $first_bot_start_time ))"
+        echo "$(( ($bot_number - 1) * "${BOT_RAMPING_DELAY:-0}" + $first_bot_start_time ))"
     fi
 }
 getBotEndTime() {

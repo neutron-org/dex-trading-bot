@@ -54,7 +54,6 @@ services:
     env_file:
       - ${ENV_FILE:-.env}
     environment:
-      - BOT_RAMPING_DELAY=${BOT_RAMPING_DELAY:-3} # seconds between starting each bot
       # override env file with variables that connect to the neutron-node service here
       - CHAIN_ID=${CHAIN_ID:-test-1}
       - RPC_ADDRESS=${RPC_ADDRESS:-http://neutron-node:26657}
