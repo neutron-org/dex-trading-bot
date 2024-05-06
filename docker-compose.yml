@@ -51,24 +51,16 @@ services:
     command: ["/bin/bash", "./scripts/run_trade_bot.sh"]
     deploy:
       replicas: ${BOTS:-1}
+    env_file:
+      - ${ENV_FILE:-.env}
     environment:
       - BOT_RAMPING_DELAY=${BOT_RAMPING_DELAY:-3} # seconds between starting each bot
+      # override env file with variables that connect to the neutron-node service here
       - CHAIN_ID=${CHAIN_ID:-test-1}
       - RPC_ADDRESS=${RPC_ADDRESS:-http://neutron-node:26657}
       - API_ADDRESS=${API_ADDRESS:-http://neutron-node:1317}
+      # this var is set when using `make test-trade-bot`
       - TRADE_DURATION_SECONDS=${TRADE_DURATION_SECONDS:-}
-      - TRADE_FREQUENCY_SECONDS=${TRADE_FREQUENCY_SECONDS:-60}
-      - ON_EXIT_WITHDRAW_POOLS=${ON_EXIT_WITHDRAW_POOLS:-}
-      - GAS_ADJUSTMENT=${GAS_ADJUSTMENT:-2}
-      - GAS_PRICES=${GAS_PRICES:-0.0025untrn}
-      # optional faucet mnemonic should be set with specific FAUCET_MNEMONIC:
-      - FAUCET_MNEMONIC=${FAUCET_MNEMONIC}
-      # optional bot mnemonics can be set using BOT_MNEMONIC/S or MNEMONIC/S:
-      # mnemonics may be delimited with: line breaks, tabs, semicolons, commas, and multiple spaces
-      - MNEMONICS=${MNEMONICS:-$MNEMONIC}
-      - BOT_MNEMONICS=${BOT_MNEMONICS:-$BOT_MNEMONIC}
-      # allow passing through a TOKEN_CONFIG object, defaulting to TOKEN_CONFIG_DEFAULT if not found
-      - TOKEN_CONFIG=${TOKEN_CONFIG}
       # use (from default local node test wallets) up to about 10,000,000 (display) tokens in each pool
       # use range of token amounts to visualize multiple orders of magnitude in dev UI
       - TOKEN_CONFIG_DEFAULT=
@@ -87,7 +79,6 @@ services:
             "gas":"1000000000untrn"
           }
         }
-      - COINGECKO_API_TOKEN=${COINGECKO_API_TOKEN}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
