@@ -98,6 +98,7 @@ two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
 sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
 
+# enforce a default TRADE_FREQUENCY_SECONDS or the script will fail
 TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 
 # add function to check when the script should finish
