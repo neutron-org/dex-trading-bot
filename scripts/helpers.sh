@@ -69,7 +69,7 @@ getTokenConfigArray() {
     # this includes extra gas passed in the config or default config object
     bot_count=$( getBotCount )
     # by default shift the period of each token pair slightly so they are not exactly in sync
-    echo "${TOKEN_CONFIG:-"$TOKEN_CONFIG_DEFAULT"}" | jq -r '
+    echo "${TOKEN_CONFIG:-"{}"}" | jq -r '
         .defaults as $defaults
         | del(.defaults)
         | to_entries
