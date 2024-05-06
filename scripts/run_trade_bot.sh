@@ -246,7 +246,7 @@ do
     echo "pair: $tokenA<>$tokenB current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $tokenA per $tokenB)"
 
     # if initial ticks do not yet exist, add them so we have some liquidity to swap with
-    if [ -z "${tokens_available["$pair_index-$tokenA"]}" ]
+    if [ -z "$SKIP_INITIAL_DEPOSIT" ] && [ -z "${tokens_available["$pair_index-$tokenA"]}" ]
     then
       echo "making deposit: initial ticks for $tokenA and $tokenB"
       # apply half of the available tokens to all tick indexes specified
