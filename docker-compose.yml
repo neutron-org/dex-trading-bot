@@ -22,8 +22,7 @@ services:
             --log_level "$$LOG_LEVEL"              \
             --home "$$CHAIN_DIR"                   \
             --pruning=nothing                      \
-            --grpc.address="0.0.0.0:$$GRPCPORT"    \
-            --grpc-web.address="0.0.0.0:$$GRPCWEB"
+            --grpc.address="0.0.0.0:$$GRPCPORT"
       '
     container_name: neutron-node
     volumes:

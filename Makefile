@@ -18,7 +18,7 @@ init-neutron:
 ifeq (,$(wildcard $(REPOS_DIR)/neutron))
 	cd $(REPOS_DIR) && git clone -b $(NEUTRON_VERSION) https://github.com/neutron-org/neutron.git
 else
-	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
+	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git fetch origin $(NEUTRON_VERSION) --tags && git checkout $(NEUTRON_VERSION)
 endif
 
 init-hermes:
