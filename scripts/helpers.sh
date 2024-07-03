@@ -5,13 +5,13 @@ set -e
 #       so you can optionally add a Docker "env" JSON string to run a single bot without Docker
 getDockerEnv() {
     # get this Docker container env info
-    if [ ! -z "$HOSTNAME" ]
+    if [ ! -z "$HOSTNAME" ] && [ -z "$DOCKER_ENV" ]
     then
         curl -s --unix-socket /run/docker.sock http://docker/containers/$HOSTNAME/json
     else
         # default will return a setup that works when running image as a single Docker container
         # eg. `docker run -it --rm --env-file .env dex-trading-bot:latest`
-        echo "$DOCKER_ENV:-'{"Config":{"Hostname":"trading-bot","Labels":{"com.docker.compose.container-number":1}}}}'"
+        echo "${DOCKER_ENV:-'{"Config":{"Hostname":"trading-bot","Labels":{"com.docker.compose.container-number":1}}}}'}"
     fi
 }
 getDockerEnvs() {
