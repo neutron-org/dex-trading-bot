@@ -150,7 +150,7 @@ do
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
     price_config=$( echo "$token_pair_config" | jq -r '.price' )
-    price_decimals_diff=$( echo "$token_pair_config" | jq -r '.price_decimals[0] - .price_decimals[1]' )
+    price_decimals_diff=$( echo "$token_pair_config" | jq -r '.price_decimals[1] - .price_decimals[0]' )
 
     # if price is a number, i.e. if price is set manually
     if (( $(echo "$price_config" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 1 ))
