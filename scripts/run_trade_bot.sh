@@ -356,7 +356,7 @@ do
       | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
     )
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
-    if [ "$first_tickB_price_ratio" != "null" ] && (( $(bc <<< "$first_tickB_price_ratio < $goal_price_ratio") ))
+    if [ "$first_tickB_price_ratio" != "null" ] && (( $( bc <<< "$first_tickB_price_ratio < $goal_price_ratio" ) ))
     then
       balance_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r ".amount" )"
       trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
