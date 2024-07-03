@@ -172,7 +172,7 @@ do
       # approximate price with sine curves of given amplitude and period
       # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
       pair_price_index_adjustment=$(
-        bc -l " $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) "
+        bc -l <<< " $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) "
       )
 
     # if price is configured to be fetched from coingecko
@@ -213,7 +213,7 @@ do
 
       echo "got prices: $tokenA = $priceA, $tokenB = $priceB"
 
-      pair_display_price=$( bc -l " $priceB/$priceA " )
+      pair_display_price=$( bc -l <<< " $priceB/$priceA " )
 
     else
       echo "error: unexpected $tokenA<>$tokenB price format $price_config: expected a number or a coingecko pair"
