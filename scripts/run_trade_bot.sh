@@ -312,8 +312,8 @@ do
     echo "check: place-limit-order: tokenA side: is $first_tickA_price_ratio > $goal_price_ratio ?"
     if [ "$first_tickA_price_ratio" != "null" ] && (( $( bc <<< "$first_tickA_price_ratio > $goal_price_ratio" ) ))
     then
-      echo "making place-limit-order: '$tokenB' -> '$tokenA'"
       trade_amount="$( neutrond query bank balances $address --denom $tokenB --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      echo "making place-limit-order: '$tokenB' -> '$tokenA' to goal price $goal_price with $trade_amount tokens"
       if [ "$trade_amount" -gt "0" ]
       then
         tx_response="$(
@@ -350,8 +350,8 @@ do
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
     if [ "$first_tickB_price_ratio" != "null" ] && (( $(bc <<< "$first_tickB_price_ratio < $goal_price_ratio") ))
     then
-      echo "making place-limit-order: '$tokenA' -> '$tokenB'"
       trade_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      echo "making place-limit-order: '$tokenA' -> '$tokenB' to goal price $goal_price with $trade_amount tokens"
       if [ "$trade_amount" -gt "0" ]
       then
         tx_response="$(
