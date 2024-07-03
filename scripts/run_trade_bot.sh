@@ -312,10 +312,18 @@ do
     echo "check: place-limit-order: tokenA side: is $first_tickA_price_ratio > $goal_price_ratio ?"
     if [ "$first_tickA_price_ratio" != "null" ] && (( $( bc <<< "$first_tickA_price_ratio > $goal_price_ratio" ) ))
     then
-      trade_amount="$( neutrond query bank balances $address --denom $tokenB --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      balance_amount="$( neutrond query bank balances $address --denom $tokenB --output json | jq -r ".amount" )"
+      trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
       echo "making place-limit-order: '$tokenB' -> '$tokenA' to goal price $goal_price with $trade_amount tokens"
-      if [ "$trade_amount" -gt "0" ]
+      directional_goal_price="$(( $goal_price * -1 ))"
+      minimum_trade_amount="$( rounded_calculation "1.0001^$directional_goal_price + 1" )"
+      if [ "$balance_amount" -gt "$minimum_trade_amount" ]
       then
+        if [ "$minimum_trade_amount" -gt "$trade_amount" ]
+        then
+          trade_amount="$minimum_trade_amount"
+          echo "changing place-limit-order: increase amount to mininum: $minimum_trade_amount"
+        fi
         tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
@@ -325,7 +333,7 @@ do
           `# token out` \
           $tokenA \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$(( $goal_price * -1 ))]" \
+          "[$directional_goal_price]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
@@ -336,7 +344,7 @@ do
         )"
         tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
-        echo "skipping place-limit-order: '$tokenB' -> '$tokenA': not enough funds"
+        echo "skipping place-limit-order: '$tokenB' -> '$tokenA': not enough funds for trade (balance: $balance_amount, required: $minimum_trade_amount)"
       fi
     else
       echo "ignore place-limit-order: '$tokenB' -> '$tokenA': no liquidity to arbitrage"
@@ -350,10 +358,18 @@ do
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
     if [ "$first_tickB_price_ratio" != "null" ] && (( $(bc <<< "$first_tickB_price_ratio < $goal_price_ratio") ))
     then
-      trade_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
+      balance_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r ".amount" )"
+      trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
       echo "making place-limit-order: '$tokenA' -> '$tokenB' to goal price $goal_price with $trade_amount tokens"
-      if [ "$trade_amount" -gt "0" ]
+      directional_goal_price="$goal_price"
+      minimum_trade_amount="$( rounded_calculation "1.0001^$directional_goal_price + 1" )"
+      if [ "$balance_amount" -gt "$minimum_trade_amount" ]
       then
+        if [ "$minimum_trade_amount" -gt "$trade_amount" ]
+        then
+          trade_amount="$minimum_trade_amount"
+          echo "changing place-limit-order: increase amount to mininum: $minimum_trade_amount"
+        fi
         tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
@@ -363,7 +379,7 @@ do
           `# token out` \
           $tokenB \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$goal_price]" \
+          "[$directional_goal_price]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
             `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
@@ -374,7 +390,7 @@ do
         )"
         tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
-        echo "skipping place-limit-order: '$tokenA' -> '$tokenB': not enough funds"
+        echo "skipping place-limit-order: '$tokenA' -> '$tokenB': not enough funds for trade (balance: $balance_amount, required: $minimum_trade_amount)"
       fi
     else
       echo "ignore place-limit-order: '$tokenA' -> '$tokenB': no liquidity to arbitrage"
