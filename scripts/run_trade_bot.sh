@@ -294,7 +294,7 @@ do
 
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
-    # compute goal price (and inverse gola price for inverted token pair order: tokenB<>tokenA)
+    # compute goal price (and inverse goal price for inverted token pair order: tokenB<>tokenA)
     goal_price=$(( $current_price + $deviation ))
     goal_price_ratio=$( echo "1.0001^$goal_price" | bc -l )
 
