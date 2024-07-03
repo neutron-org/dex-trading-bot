@@ -90,6 +90,7 @@ the object values are the price ratio of tokenB/tokenA, a coingecko pair or a co
 PAIR_CONFIG = {
     "price":            1,                              # price ratio is of tokenB/tokenA (how many tokenA is required to buy 1 tokenB?), OR
     "price":            "coingecko:api_idA<>api_idB",   # for live price retrieval, use the coingecko API IDs of the tokens (e.g. "coingecko:cosmos<>neutron-3" for atom<>ntrn pair)
+    "price_decimals":   [0, 0]                          # the display token decimals (exponents) over base token amounts (eg. for ETH=10^18wei, USDC=10^6uUSDC use [18, 6])
     "ticks":            100,                            # number of ticks for each bot to deposit
     "fees":             [1, 5, 20, 100]                 # each LP deposit fee may be (randomly) one of the whitelisted fees here
     "gas":              "0untrn"                        # additional gas tokens that bots can use to cover gas fees
@@ -115,6 +116,7 @@ TOKEN_CONFIG = {
     "10000000000000uibcusdc<>10000000000000uibcatom": 10,
     "100000000000untrn<>100000000000uibcusdc":{
         "price": "coingecko:neutron-3<>usd-coin",
+        "price_decimals": [6, 6], # not required here (no decimal difference)
         "ticks": 50
     },
     "1000000000uibcatom<>1000000000untrn":{

@@ -150,6 +150,7 @@ do
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
     price_config=$( echo "$token_pair_config" | jq -r '.price' )
+    price_decimals_diff=$( echo "$token_pair_config" | jq -r '.price_decimals[0] - .price_decimals[1]' )
 
     # if price is a number, i.e. if price is set manually
     if (( $(echo "$price_config" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 1 ))
@@ -163,15 +164,15 @@ do
       period2=$( echo "$token_pair_config" | jq -r '.period2' )
 
       # convert price to price index here
+      pair_display_price=$( echo "$token_pair_config" | jq -r '.price' )
       price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
       echo "calculated price index before approximation $price_index"
 
       # determine the new current price goal
       # approximate price with sine curves of given amplitude and period
       # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
-      current_price=$(
-        rounded_calculation \
-        "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
+      pair_price_index_adjustment=$(
+        bc -l " $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) "
       )
 
     # if price is configured to be fetched from coingecko
@@ -212,17 +213,18 @@ do
 
       echo "got prices: $tokenA = $priceA, $tokenB = $priceB"
 
-      # convert assets price ratio to price index here
-      current_price=$(
-        rounded_calculation \
-        "l($priceB/$priceA) / l(1.0001)"
-      )
-      echo "calculated price index $current_price"
+      pair_display_price=$( bc -l " $priceB/$priceA " )
 
     else
       echo "error: unexpected $tokenA<>$tokenB price format $price_config: expected a number or a coingecko pair"
       exit 1
     fi
+
+    # calculate current price index from display price + display price exponent adjustment + oscillation adjustment:
+    current_price=$(
+      rounded_calculation \
+      "l($pair_display_price) / l(1.0001) + $price_decimals_diff * l(10) / l(1.0001) + ${pair_price_index_adjustment:-"0"}"
+    )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot

@@ -92,6 +92,7 @@ getTokenConfigArray() {
             pair: .value.pair,
             config: {
                 price: (.value.price // $defaults.price // 1),
+                price_decimals:  (.value.price_decimals // $defaults.price_decimals // [0, 0]),
                 ticks: (.value.ticks // $defaults.ticks // 100),
                 fees: (.value.fees // $defaults.fees // [1, 5, 20, 100]),
                 rebalance_factor: (.value.rebalance_factor // $defaults.rebalance_factor // 0.5),
