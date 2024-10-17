@@ -52,6 +52,7 @@ build-gaia: init-dir init-gaia
 
 build-neutron: init-dir init-neutron
 	cd $(REPOS_DIR)/neutron && $(MAKE) build-docker-image
+	docker tag neutron-node:latest neutron-node:$(NEUTRON_VERSION)
 
 build-hermes: init-dir init-hermes
 	cd $(SETUP_DIR) && $(MAKE) build-hermes
