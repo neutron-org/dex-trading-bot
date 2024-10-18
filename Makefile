@@ -4,7 +4,7 @@ REPOS_DIR ?= ./repos
 SETUP_DIR ?= $(REPOS_DIR)/neutron-integration-tests/setup
 DOCKER ?= docker
 COMPOSE ?= docker-compose
-NEUTRON_VERSION ?= v4.2.2
+NEUTRON_VERSION ?= v5.0.0-rc0
 GAIA_VERSION ?= v14.1.0
 
 

@@ -282,6 +282,8 @@ do
         "$( get_joined_array $tick_count get_fee "$fees" )" \
         `# disable_autoswap` \
         "$( repeat_with_comma "true" "$tick_count" )" \
+        `# fail_tx_on_BEL` \
+        "$( repeat_with_comma "true" "$tick_count" )" \
         `# options` \
         --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
       )"
@@ -312,7 +314,7 @@ do
     echo "check: place-limit-order: tokenA side: is $first_tickA_price_ratio > $goal_price_ratio ?"
     if [ "$first_tickA_price_ratio" != "null" ] && (( $( bc <<< "$first_tickA_price_ratio > $goal_price_ratio" ) ))
     then
-      balance_amount="$( neutrond query bank balances $address --denom $tokenB --output json | jq -r ".amount" )"
+      balance_amount="$( neutrond query bank balance $address "$tokenB" --output json | jq -r ".balance.amount // 0" )"
       trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
       echo "making place-limit-order: '$tokenB' -> '$tokenA' to goal price $goal_price with $trade_amount tokens"
       directional_goal_price="$(( $goal_price * -1 ))"
@@ -358,7 +360,7 @@ do
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
     if [ "$first_tickB_price_ratio" != "null" ] && (( $( bc <<< "$first_tickB_price_ratio < $goal_price_ratio" ) ))
     then
-      balance_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r ".amount" )"
+      balance_amount="$( neutrond query bank balance $address "$tokenA" --output json | jq -r ".balance.amount // 0" )"
       trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
       echo "making place-limit-order: '$tokenA' -> '$tokenB' to goal price $goal_price with $trade_amount tokens"
       directional_goal_price="$goal_price"
@@ -483,6 +485,8 @@ do
       "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
       `# disable_autoswap` \
       "$( repeat_with_comma "true" "$excess_user_deposits_count" )" \
+      `# fail_tx_on_BEL` \
+      "$( repeat_with_comma "false" "$excess_user_deposits_count" )" \
       `# options` \
       --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
     )"
