@@ -22,4 +22,4 @@ COPY --from=neutrond-binary /bin/neutrond /usr/bin
 WORKDIR /workspace/neutron
 COPY scripts /workspace/neutron/scripts
 
-CMD bash ./scripts/run_trade_bot.sh
+CMD ["bash", "./scripts/run_trade_bot.sh"]
