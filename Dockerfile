@@ -1,14 +1,18 @@
-# Use neutron binary version given through version number or heighliner image
-# eg. passing a locally made heighliner image as NEUTRON_IMAGE
-ARG NEUTRON_VERSION
-# Use Heighliner build by default to get around building for correct platform issue
-# as Heighliner build support multiple platforms. More details in commit message
-ARG NEUTRON_IMAGE=ghcr.io/strangelove-ventures/heighliner/neutron:${NEUTRON_VERSION}
+ARG NEUTRON_VERSION=latest
 
-FROM "$NEUTRON_IMAGE" as neutrond-binary
+# the neutron binary image is typically built on amd64 (but may be changed)
+# see: https://github.com/neutron-org/neutron/blob/v5.0.0-rc0/Makefile#L107-L122
+ARG BUILDPLATFORM=amd64
+
+# optionally specify a difference image to get the binary from
+ARG NEUTRON_IMAGE=neutron-${BUILDPLATFORM}:${NEUTRON_VERSION}
+
+# make build platform consistent across images to avoid docker.io lookup error
+# see: https://stackoverflow.com/questions/20481225/how-can-i-use-a-local-image-as-the-base-image-with-a-dockerfile#69798220
+FROM --platform=${BUILDPLATFORM} ${NEUTRON_IMAGE} AS neutrond-binary
 
 # allow this container to contact other Docker containers through the docker CLI
-FROM docker:24.0.5-cli
+FROM --platform=${BUILDPLATFORM} docker:24.0.5-cli
 
 # add additional dependencies for the testnet scripts
 RUN apk add bash curl grep jq;

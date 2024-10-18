@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   neutron-node:
-    image: neutron-node
+    image: neutron-node:${NEUTRON_VERSION:-latest}
     command: >
       /bin/bash -c '
         #!/bin/bash
@@ -44,6 +44,11 @@ services:
   dex-trading-bot:
     build:
       context: .
+      args:
+        BUILDPLATFORM: ${BUILDPLATFORM:-amd64}
+        NEUTRON_VERSION: ${NEUTRON_VERSION:-latest}
+    image: dex-trading-bot:${NEUTRON_VERSION:-latest}
+    platform: linux/amd64
     depends_on:
       - "neutron-node"
     entrypoint: ["/bin/bash", "./scripts/setup_entrypoint.sh"]
