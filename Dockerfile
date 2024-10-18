@@ -12,7 +12,7 @@ ARG NEUTRON_IMAGE=neutron-${BUILDPLATFORM}:${NEUTRON_VERSION}
 FROM --platform=${BUILDPLATFORM} ${NEUTRON_IMAGE} AS neutrond-binary
 
 # allow this container to contact other Docker containers through the docker CLI
-FROM --platform=${BUILDPLATFORM} docker:24.0.5-cli
+FROM --platform=${BUILDPLATFORM} docker:27.3.1-cli
 
 # add additional dependencies for the testnet scripts
 RUN apk add bash curl grep jq;
