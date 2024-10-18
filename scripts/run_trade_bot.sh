@@ -116,6 +116,7 @@ function check_duration {
 }
 
 # respond to price changes forever
+loop_index="0"
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
@@ -127,8 +128,12 @@ do
     break
   fi
 
-  echo "... loop will delay for: $delay seconds"
-  sleep $delay
+  # delay loops after the first loop
+  if [ "$loop_index" -gt "0" ]
+  then
+    echo "... loop will delay for: $delay seconds"
+    sleep $delay
+  fi
   echo "loop: starting at $EPOCHSECONDS"
 
   for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
@@ -546,6 +551,7 @@ do
 
   done
 
+  loop_index+=1
 done
 
 echo "TRADE_DURATION_SECONDS has been reached";
