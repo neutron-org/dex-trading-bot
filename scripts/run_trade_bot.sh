@@ -551,7 +551,7 @@ do
 
   done
 
-  loop_index+=1
+  loop_index="$(( $loop_index + 1 ))"
 done
 
 echo "TRADE_DURATION_SECONDS has been reached";
