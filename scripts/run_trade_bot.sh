@@ -313,7 +313,7 @@ do
     echo "making query: of current '$tokenA' ticks"
     first_tickA_price_ratio=$(
       neutrond query dex list-tick-liquidity "$tokenA<>$tokenB" "$tokenA" --output json --limit 1 \
-      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker // .tick_liquidity[0].limit_order_tranche.price_taker_to_maker"
     )
     # use bc for aribtrary precision math comparison (check for null because non-zero result evals true)
     echo "check: place-limit-order: tokenA side: is $first_tickA_price_ratio > $goal_price_ratio ?"
@@ -360,7 +360,7 @@ do
     echo "making query: of current '$tokenB' ticks"
     first_tickB_price_ratio=$(
       neutrond query dex list-tick-liquidity "$tokenA<>$tokenB" "$tokenB" --output json --limit 1 \
-      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker // .tick_liquidity[0].limit_order_tranche.maker_price"
     )
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
     if [ "$first_tickB_price_ratio" != "null" ] && (( $( bc <<< "$first_tickB_price_ratio < $goal_price_ratio" ) ))
