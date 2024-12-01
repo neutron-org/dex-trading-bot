@@ -28,7 +28,7 @@ abci_info=$(
         --max-time 3 \
         --retry 30 \
         --retry-connrefused \
-        --retry-delay 1 \
+        --retry-delay 2 \
         --silent \
         $RPC_ADDRESS/abci_info
 )

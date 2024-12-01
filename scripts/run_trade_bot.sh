@@ -98,6 +98,7 @@ two_pi=$( echo "scale=8; 8*a(1)" | bc -l )
 start_epoch=$( bash $SCRIPTPATH/helpers.sh getBotStartTime )
 sleep $(( $start_epoch - $EPOCHSECONDS > 0 ? $start_epoch - $EPOCHSECONDS : 0 ))
 
+# enforce a default TRADE_FREQUENCY_SECONDS or the script will fail
 TRADE_FREQUENCY_SECONDS="${TRADE_FREQUENCY_SECONDS:-60}"
 
 # add function to check when the script should finish
@@ -115,6 +116,7 @@ function check_duration {
 }
 
 # respond to price changes forever
+loop_index="0"
 while true
 do
   # wait a bit, maybe less than a block or enough that we don't touch a block or two
@@ -126,8 +128,12 @@ do
     break
   fi
 
-  echo "... loop will delay for: $delay seconds"
-  sleep $delay
+  # delay loops after the first loop
+  if [ "$loop_index" -gt "0" ]
+  then
+    echo "... loop will delay for: $delay seconds"
+    sleep $delay
+  fi
   echo "loop: starting at $EPOCHSECONDS"
 
   for (( pair_index=0; pair_index<$token_pair_config_array_length; pair_index++ ))
@@ -149,6 +155,7 @@ do
     deposit_index_accuracy=$( echo "$token_pair_config" | jq -r '.deposit_accuracy' )
     swap_index_accuracy=$( echo "$token_pair_config" | jq -r '.swap_accuracy' )
     price_config=$( echo "$token_pair_config" | jq -r '.price' )
+    price_decimals_diff=$( echo "$token_pair_config" | jq -r '.price_decimals[1] - .price_decimals[0]' )
 
     # if price is a number, i.e. if price is set manually
     if (( $(echo "$price_config" | grep -c '^[0-9]\+\(\.[0-9]\+\)\?$') == 1 ))
@@ -162,15 +169,15 @@ do
       period2=$( echo "$token_pair_config" | jq -r '.period2' )
 
       # convert price to price index here
+      pair_display_price=$( echo "$token_pair_config" | jq -r '.price' )
       price_index=$( echo "$token_pair_config" | jq -r '((.price | log)/(1.0001 | log) | round)' )
       echo "calculated price index before approximation $price_index"
 
       # determine the new current price goal
       # approximate price with sine curves of given amplitude and period
       # by default: macro curve (1) oscillates over hours / micro curve (2) oscillates over minutes
-      current_price=$(
-        rounded_calculation \
-        "$price_index + $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi)"
+      pair_price_index_adjustment=$(
+        bc -l <<< " $amplitude1*s($EPOCHSECONDS / $period1 * $two_pi) + $amplitude2*s($EPOCHSECONDS / $period2 * $two_pi) "
       )
 
     # if price is configured to be fetched from coingecko
@@ -211,17 +218,18 @@ do
 
       echo "got prices: $tokenA = $priceA, $tokenB = $priceB"
 
-      # convert assets price ratio to price index here
-      current_price=$(
-        rounded_calculation \
-        "l($priceB/$priceA) / l(1.0001)"
-      )
-      echo "calculated price index $current_price"
+      pair_display_price=$( bc -l <<< " $priceB/$priceA " )
 
     else
       echo "error: unexpected $tokenA<>$tokenB price format $price_config: expected a number or a coingecko pair"
       exit 1
     fi
+
+    # calculate current price index from display price + display price exponent adjustment + oscillation adjustment:
+    current_price=$(
+      rounded_calculation \
+      "l($pair_display_price) / l(1.0001) + $price_decimals_diff * l(10) / l(1.0001) + ${pair_price_index_adjustment:-"0"}"
+    )
 
     # calculate token amounts we will use in the initial deposit
     # the amount deposited by all bots should not be more than can be swapped by any one bot
@@ -245,7 +253,7 @@ do
     echo "pair: $tokenA<>$tokenB current price index is $current_price ($( echo "1.0001^$current_price" | bc -l ) $tokenA per $tokenB)"
 
     # if initial ticks do not yet exist, add them so we have some liquidity to swap with
-    if [ -z "${tokens_available["$pair_index-$tokenA"]}" ]
+    if [ -z "$SKIP_INITIAL_DEPOSIT" ] && [ -z "${tokens_available["$pair_index-$tokenA"]}" ]
     then
       echo "making deposit: initial ticks for $tokenA and $tokenB"
       # apply half of the available tokens to all tick indexes specified
@@ -279,6 +287,8 @@ do
         "$( get_joined_array $tick_count get_fee "$fees" )" \
         `# disable_autoswap` \
         "$( repeat_with_comma "true" "$tick_count" )" \
+        `# fail_tx_on_BEL` \
+        "$( repeat_with_comma "true" "$tick_count" )" \
         `# options` \
         --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
       )"
@@ -291,7 +301,7 @@ do
 
     # add some randomness into price goal (within swap_index_accuracy)
     deviation=$(( $RANDOM % ( $swap_index_accuracy * 2 ) - $swap_index_accuracy ))
-    # compute goal price (and inverse gola price for inverted token pair order: tokenB<>tokenA)
+    # compute goal price (and inverse goal price for inverted token pair order: tokenB<>tokenA)
     goal_price=$(( $current_price + $deviation ))
     goal_price_ratio=$( echo "1.0001^$goal_price" | bc -l )
 
@@ -303,16 +313,24 @@ do
     echo "making query: of current '$tokenA' ticks"
     first_tickA_price_ratio=$(
       neutrond query dex list-tick-liquidity "$tokenA<>$tokenB" "$tokenA" --output json --limit 1 \
-      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_taker_to_maker // .tick_liquidity[0].limit_order_tranche.price_taker_to_maker"
     )
     # use bc for aribtrary precision math comparison (check for null because non-zero result evals true)
     echo "check: place-limit-order: tokenA side: is $first_tickA_price_ratio > $goal_price_ratio ?"
     if [ "$first_tickA_price_ratio" != "null" ] && (( $( bc <<< "$first_tickA_price_ratio > $goal_price_ratio" ) ))
     then
-      echo "making place-limit-order: '$tokenB' -> '$tokenA'"
-      trade_amount="$( neutrond query bank balances $address --denom $tokenB --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
-      if [ "$trade_amount" -gt "0" ]
+      balance_amount="$( neutrond query bank balance $address "$tokenB" --output json | jq -r ".balance.amount // 0" )"
+      trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
+      echo "making place-limit-order: '$tokenB' -> '$tokenA' to goal price $goal_price with $trade_amount tokens"
+      directional_goal_price="$(( $goal_price * -1 ))"
+      minimum_trade_amount="$( rounded_calculation "1.0001^$directional_goal_price + 1" )"
+      if [ "$balance_amount" -gt "$minimum_trade_amount" ]
       then
+        if [ "$minimum_trade_amount" -gt "$trade_amount" ]
+        then
+          trade_amount="$minimum_trade_amount"
+          echo "changing place-limit-order: increase amount to mininum: $minimum_trade_amount"
+        fi
         tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
@@ -322,7 +340,7 @@ do
           `# token out` \
           $tokenA \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$(( $goal_price * -1 ))]" \
+          "[$directional_goal_price]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
           `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
@@ -333,7 +351,7 @@ do
         )"
         tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
-        echo "skipping place-limit-order: '$tokenB' -> '$tokenA': not enough funds"
+        echo "skipping place-limit-order: '$tokenB' -> '$tokenA': not enough funds for trade (balance: $balance_amount, required: $minimum_trade_amount)"
       fi
     else
       echo "ignore place-limit-order: '$tokenB' -> '$tokenA': no liquidity to arbitrage"
@@ -342,15 +360,23 @@ do
     echo "making query: of current '$tokenB' ticks"
     first_tickB_price_ratio=$(
       neutrond query dex list-tick-liquidity "$tokenA<>$tokenB" "$tokenB" --output json --limit 1 \
-      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker"
+      | jq -r ".tick_liquidity[0].pool_reserves.price_opposite_taker_to_maker // .tick_liquidity[0].limit_order_tranche.maker_price"
     )
     echo "check: place-limit-order: tokenB side: is $first_tickB_price_ratio < $goal_price_ratio ?"
-    if [ "$first_tickB_price_ratio" != "null" ] && (( $(bc <<< "$first_tickB_price_ratio < $goal_price_ratio") ))
+    if [ "$first_tickB_price_ratio" != "null" ] && (( $( bc <<< "$first_tickB_price_ratio < $goal_price_ratio" ) ))
     then
-      echo "making place-limit-order: '$tokenA' -> '$tokenB'"
-      trade_amount="$( neutrond query bank balances $address --denom $tokenA --output json | jq -r "(.amount | tonumber) * $swap_factor | floor" )"
-      if [ "$trade_amount" -gt "0" ]
+      balance_amount="$( neutrond query bank balance $address "$tokenA" --output json | jq -r ".balance.amount // 0" )"
+      trade_amount="$( echo "$balance_amount" | jq -r "(. | tonumber) * $swap_factor | floor" )"
+      echo "making place-limit-order: '$tokenA' -> '$tokenB' to goal price $goal_price with $trade_amount tokens"
+      directional_goal_price="$goal_price"
+      minimum_trade_amount="$( rounded_calculation "1.0001^$directional_goal_price + 1" )"
+      if [ "$balance_amount" -gt "$minimum_trade_amount" ]
       then
+        if [ "$minimum_trade_amount" -gt "$trade_amount" ]
+        then
+          trade_amount="$minimum_trade_amount"
+          echo "changing place-limit-order: increase amount to mininum: $minimum_trade_amount"
+        fi
         tx_response="$(
           neutrond tx dex place-limit-order \
           `# receiver` \
@@ -360,7 +386,7 @@ do
           `# token out` \
           $tokenB \
           `# tickIndexInToOut (note: this is the limit that we will swap up to, the goal)` \
-          "[$goal_price]" \
+          "[$directional_goal_price]" \
           `# amount in: allow up to a good fraction of the denom balance to be traded, to try to reach the tick limit` \
           "$trade_amount" \
             `# order type enum see: https://github.com/duality-labs/duality/blob/v0.2.1/proto/duality/dex/tx.proto#L81-L87` \
@@ -371,7 +397,7 @@ do
         )"
         tx_result="$( bash $SCRIPTPATH/helpers.sh waitForTxResult "$tx_response" "swapped: ticks toward target tick index of $goal_price" )"
       else
-        echo "skipping place-limit-order: '$tokenA' -> '$tokenB': not enough funds"
+        echo "skipping place-limit-order: '$tokenA' -> '$tokenB': not enough funds for trade (balance: $balance_amount, required: $minimum_trade_amount)"
       fi
     else
       echo "ignore place-limit-order: '$tokenA' -> '$tokenB': no liquidity to arbitrage"
@@ -464,6 +490,8 @@ do
       "$( get_joined_array $excess_user_deposits_count get_fee "$fees" )" \
       `# disable_autoswap` \
       "$( repeat_with_comma "true" "$excess_user_deposits_count" )" \
+      `# fail_tx_on_BEL` \
+      "$( repeat_with_comma "false" "$excess_user_deposits_count" )" \
       `# options` \
       --from $person --yes --output json --broadcast-mode sync --gas auto --gas-adjustment $GAS_ADJUSTMENT --gas-prices $GAS_PRICES
     )"
@@ -523,6 +551,7 @@ do
 
   done
 
+  loop_index="$(( $loop_index + 1 ))"
 done
 
 echo "TRADE_DURATION_SECONDS has been reached";

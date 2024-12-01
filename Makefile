@@ -2,8 +2,9 @@
 
 REPOS_DIR ?= ./repos
 SETUP_DIR ?= $(REPOS_DIR)/neutron-integration-tests/setup
+DOCKER ?= docker
 COMPOSE ?= docker-compose
-NEUTRON_VERSION ?= v2.0.2
+NEUTRON_VERSION ?= v5.0.0-rc0
 GAIA_VERSION ?= v14.1.0
 
 
@@ -18,7 +19,7 @@ init-neutron:
 ifeq (,$(wildcard $(REPOS_DIR)/neutron))
 	cd $(REPOS_DIR) && git clone -b $(NEUTRON_VERSION) https://github.com/neutron-org/neutron.git
 else
-	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git checkout $(NEUTRON_VERSION)
+	cd $(REPOS_DIR)/neutron && git fetch origin $(NEUTRON_VERSION) && git fetch origin $(NEUTRON_VERSION) --tags && git checkout $(NEUTRON_VERSION)
 endif
 
 init-hermes:
@@ -52,6 +53,11 @@ build-gaia: init-dir init-gaia
 
 build-neutron: init-dir init-neutron
 	cd $(REPOS_DIR)/neutron && $(MAKE) build-docker-image
+	docker tag neutron-node:latest neutron-node:$(NEUTRON_VERSION)
+
+build-neutron-static-linux-amd64: init-dir init-neutron
+	cd $(REPOS_DIR)/neutron && $(MAKE) build-static-linux-amd64
+	docker tag neutron-amd64:latest neutron-amd64:$(NEUTRON_VERSION)
 
 build-hermes: init-dir init-hermes
 	cd $(SETUP_DIR) && $(MAKE) build-hermes
@@ -83,8 +89,8 @@ clean:
 
 # --- new docker compose network commands ---
 
-build-trade-bot:
-	@$(COMPOSE) build --build-arg NEUTRON_VERSION=$(NEUTRON_VERSION)
+build-trade-bot: build-neutron-static-linux-amd64
+	@$(DOCKER) build . -t dex-trading-bot:$(NEUTRON_VERSION) --build-arg NEUTRON_VERSION=$(NEUTRON_VERSION)
 
 start-trade-bot: build-trade-bot
 	@$(COMPOSE) up

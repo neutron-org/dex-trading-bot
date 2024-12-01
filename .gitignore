@@ -6,6 +6,9 @@ keystore.db
 contracts/artifacts/
 contracts/*.wasm
 
+# env
+.env
+
 # IDEs
 *.iml
 .idea
