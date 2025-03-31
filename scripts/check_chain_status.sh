@@ -20,6 +20,11 @@ if [[ $? -ne 0 ]]; then
     exit 1
 fi
 
+if [ "$RPC_ADDRESS" = "https://rpc-lb.neutron.org:443" ]; then
+    echo "Cannot test mainnet, assuming config $RPC_ADDRESS for $CHAIN_ID is ok"
+    exit 0
+fi
+
 echo "Connecting to testnet: $RPC_ADDRESS ..."
 # check if we can get information from the testnet
 abci_info=$(
